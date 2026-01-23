@@ -1,0 +1,504 @@
+{
+  "techniques": [
+    {
+      "id": "rear-naked-choke",
+      "name": "Rear Naked Choke",
+      "category": "submission",
+      "positionFromId": "back-control",
+      "submissionType": "choke",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["RNC"]
+    },
+    {
+      "id": "bow-and-arrow-choke",
+      "name": "Bow and Arrow Choke",
+      "category": "submission",
+      "positionFromId": "back-control",
+      "submissionType": "choke",
+      "giApplicable": true,
+      "nogiApplicable": false,
+      "aliases": ["bow and arrow"]
+    },
+    {
+      "id": "armbar-from-mount",
+      "name": "Armbar (Mount)",
+      "category": "submission",
+      "positionFromId": "mount.high",
+      "submissionType": "armlock",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["mount armbar"]
+    },
+    {
+      "id": "armbar-from-guard",
+      "name": "Armbar (Guard)",
+      "category": "submission",
+      "positionFromId": "guard.closed",
+      "submissionType": "armlock",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["guard armbar"]
+    },
+    {
+      "id": "triangle-choke",
+      "name": "Triangle Choke",
+      "category": "submission",
+      "positionFromId": "guard.closed",
+      "submissionType": "choke",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["triangle"]
+    },
+    {
+      "id": "kimura",
+      "name": "Kimura",
+      "category": "submission",
+      "positionFromId": "guard.closed",
+      "submissionType": "shoulder-lock",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "americana",
+      "name": "Americana",
+      "category": "submission",
+      "positionFromId": "side-control.standard",
+      "submissionType": "shoulder-lock",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["keylock"]
+    },
+    {
+      "id": "guillotine",
+      "name": "Guillotine",
+      "category": "submission",
+      "positionFromId": "standing.clinch",
+      "submissionType": "choke",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "darce-choke",
+      "name": "DArce Choke",
+      "category": "submission",
+      "positionFromId": "side-control.standard",
+      "submissionType": "choke",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["d arce"]
+    },
+    {
+      "id": "anaconda-choke",
+      "name": "Anaconda Choke",
+      "category": "submission",
+      "positionFromId": "turtle",
+      "submissionType": "choke",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "cross-collar-choke",
+      "name": "Cross Collar Choke",
+      "category": "submission",
+      "positionFromId": "mount",
+      "submissionType": "choke",
+      "giApplicable": true,
+      "nogiApplicable": false,
+      "aliases": ["x-collar"]
+    },
+    {
+      "id": "ezekiel-choke",
+      "name": "Ezekiel Choke",
+      "category": "submission",
+      "positionFromId": "mount",
+      "submissionType": "choke",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "straight-ankle-lock",
+      "name": "Straight Ankle Lock",
+      "category": "submission",
+      "positionFromId": "guard.open.slx",
+      "submissionType": "leglock",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["ankle lock"]
+    },
+    {
+      "id": "heel-hook",
+      "name": "Heel Hook",
+      "category": "submission",
+      "positionFromId": "guard.open.slx",
+      "submissionType": "leglock",
+      "giApplicable": false,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "omoplata",
+      "name": "Omoplata",
+      "category": "submission",
+      "positionFromId": "guard.closed",
+      "submissionType": "shoulder-lock",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "arm-triangle",
+      "name": "Arm Triangle",
+      "category": "submission",
+      "positionFromId": "mount.high",
+      "submissionType": "choke",
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["head and arm"]
+    },
+    {
+      "id": "scissor-sweep",
+      "name": "Scissor Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.closed",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "hip-bump-sweep",
+      "name": "Hip Bump Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.closed",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["sit-up sweep"]
+    },
+    {
+      "id": "flower-sweep",
+      "name": "Flower Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.closed",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "pendulum-sweep",
+      "name": "Pendulum Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.closed",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "butterfly-sweep",
+      "name": "Butterfly Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.open.butterfly",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "x-guard-sweep",
+      "name": "X-Guard Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.open.x-guard",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "waiter-sweep",
+      "name": "Waiter Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.open.dlr",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "deep-half-sweep",
+      "name": "Deep Half Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.half.deep-half",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "old-school-sweep",
+      "name": "Old School Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.half",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "john-wayne-sweep",
+      "name": "John Wayne Sweep",
+      "category": "sweep",
+      "positionFromId": "guard.half",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "knee-cut-pass",
+      "name": "Knee Cut Pass",
+      "category": "pass",
+      "positionFromId": "guard.half",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["knee slice"]
+    },
+    {
+      "id": "torreando-pass",
+      "name": "Torreando Pass",
+      "category": "pass",
+      "positionFromId": "guard.open",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["bullfighter"]
+    },
+    {
+      "id": "over-under-pass",
+      "name": "Over Under Pass",
+      "category": "pass",
+      "positionFromId": "guard.half",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "leg-drag-pass",
+      "name": "Leg Drag Pass",
+      "category": "pass",
+      "positionFromId": "guard.open",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "stack-pass",
+      "name": "Stack Pass",
+      "category": "pass",
+      "positionFromId": "guard.closed",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "double-under-pass",
+      "name": "Double Under Pass",
+      "category": "pass",
+      "positionFromId": "guard.open",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "body-lock-pass",
+      "name": "Body Lock Pass",
+      "category": "pass",
+      "positionFromId": "guard.half",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "x-pass",
+      "name": "X Pass",
+      "category": "pass",
+      "positionFromId": "guard.open",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "long-step-pass",
+      "name": "Long Step Pass",
+      "category": "pass",
+      "positionFromId": "guard.open",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "upa-escape",
+      "name": "Upa Escape",
+      "category": "escape",
+      "positionFromId": "bottom-mount",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["bridge and roll"]
+    },
+    {
+      "id": "elbow-knee-escape",
+      "name": "Elbow Knee Escape",
+      "category": "escape",
+      "positionFromId": "bottom-mount",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["shrimp escape"]
+    },
+    {
+      "id": "shrimp-escape",
+      "name": "Hip Escape",
+      "category": "escape",
+      "positionFromId": "bottom-side-control",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": ["shrimp"]
+    },
+    {
+      "id": "underhook-escape",
+      "name": "Underhook Escape",
+      "category": "escape",
+      "positionFromId": "bottom-side-control",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "back-escape-hip",
+      "name": "Back Escape (Hip)",
+      "category": "escape",
+      "positionFromId": "back-exposed",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "turtle-escape-to-guard",
+      "name": "Turtle Escape to Guard",
+      "category": "escape",
+      "positionFromId": "turtle",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "side-control-bridge",
+      "name": "Side Control Bridge",
+      "category": "escape",
+      "positionFromId": "bottom-side-control",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "double-leg",
+      "name": "Double Leg",
+      "category": "takedown",
+      "positionFromId": "standing.clinch",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "single-leg",
+      "name": "Single Leg",
+      "category": "takedown",
+      "positionFromId": "standing.clinch",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "ankle-pick",
+      "name": "Ankle Pick",
+      "category": "takedown",
+      "positionFromId": "standing",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "osoto-gari",
+      "name": "Osoto Gari",
+      "category": "takedown",
+      "positionFromId": "standing",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "back-take-from-turtle",
+      "name": "Back Take from Turtle",
+      "category": "transition",
+      "positionFromId": "turtle",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "mount-to-back",
+      "name": "Mount to Back",
+      "category": "transition",
+      "positionFromId": "mount",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "side-control-to-north-south",
+      "name": "Side Control to North South",
+      "category": "transition",
+      "positionFromId": "side-control.standard",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    },
+    {
+      "id": "knee-on-belly-to-mount",
+      "name": "Knee on Belly to Mount",
+      "category": "transition",
+      "positionFromId": "knee-on-belly",
+      "submissionType": null,
+      "giApplicable": true,
+      "nogiApplicable": true,
+      "aliases": []
+    }
+  ]
+}

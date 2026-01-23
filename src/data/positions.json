@@ -1,0 +1,304 @@
+{
+  "positions": [
+    {
+      "id": "standing",
+      "name": "Standing",
+      "slug": "standing",
+      "parentId": null,
+      "path": ["standing"],
+      "perspective": "neutral",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "standing.clinch",
+      "name": "Clinch",
+      "slug": "standing-clinch",
+      "parentId": "standing",
+      "path": ["standing", "clinch"],
+      "perspective": "neutral",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard",
+      "name": "Guard",
+      "slug": "guard",
+      "parentId": null,
+      "path": ["guard"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.closed",
+      "name": "Closed Guard",
+      "slug": "guard-closed",
+      "parentId": "guard",
+      "path": ["guard", "closed"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.half",
+      "name": "Half Guard",
+      "slug": "guard-half",
+      "parentId": "guard",
+      "path": ["guard", "half"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.half.z-guard",
+      "name": "Z-Guard",
+      "slug": "guard-half-z-guard",
+      "parentId": "guard.half",
+      "path": ["guard", "half", "z-guard"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.half.deep-half",
+      "name": "Deep Half Guard",
+      "slug": "guard-half-deep-half",
+      "parentId": "guard.half",
+      "path": ["guard", "half", "deep-half"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.open",
+      "name": "Open Guard",
+      "slug": "guard-open",
+      "parentId": "guard",
+      "path": ["guard", "open"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.open.butterfly",
+      "name": "Butterfly Guard",
+      "slug": "guard-open-butterfly",
+      "parentId": "guard.open",
+      "path": ["guard", "open", "butterfly"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.open.dlr",
+      "name": "De La Riva Guard",
+      "slug": "guard-open-dlr",
+      "parentId": "guard.open",
+      "path": ["guard", "open", "dlr"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.open.rdlr",
+      "name": "Reverse De La Riva",
+      "slug": "guard-open-rdlr",
+      "parentId": "guard.open",
+      "path": ["guard", "open", "rdlr"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.open.x-guard",
+      "name": "X-Guard",
+      "slug": "guard-open-x-guard",
+      "parentId": "guard.open",
+      "path": ["guard", "open", "x-guard"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.open.slx",
+      "name": "Single Leg X",
+      "slug": "guard-open-slx",
+      "parentId": "guard.open",
+      "path": ["guard", "open", "slx"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "guard.open.spider",
+      "name": "Spider Guard",
+      "slug": "guard-open-spider",
+      "parentId": "guard.open",
+      "path": ["guard", "open", "spider"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": false
+    },
+    {
+      "id": "mount",
+      "name": "Mount",
+      "slug": "mount",
+      "parentId": null,
+      "path": ["mount"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "mount.low",
+      "name": "Low Mount",
+      "slug": "mount-low",
+      "parentId": "mount",
+      "path": ["mount", "low"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "mount.high",
+      "name": "High Mount",
+      "slug": "mount-high",
+      "parentId": "mount",
+      "path": ["mount", "high"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "mount.s-mount",
+      "name": "S-Mount",
+      "slug": "mount-s-mount",
+      "parentId": "mount",
+      "path": ["mount", "s-mount"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "side-control",
+      "name": "Side Control",
+      "slug": "side-control",
+      "parentId": null,
+      "path": ["side-control"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "side-control.standard",
+      "name": "Standard Side Control",
+      "slug": "side-control-standard",
+      "parentId": "side-control",
+      "path": ["side-control", "standard"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "side-control.kesa",
+      "name": "Kesa Gatame",
+      "slug": "side-control-kesa",
+      "parentId": "side-control",
+      "path": ["side-control", "kesa"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "side-control.north-south",
+      "name": "North South",
+      "slug": "side-control-north-south",
+      "parentId": "side-control",
+      "path": ["side-control", "north-south"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "back-control",
+      "name": "Back Control",
+      "slug": "back-control",
+      "parentId": null,
+      "path": ["back-control"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "back-control.hooks",
+      "name": "Back Control (Hooks)",
+      "slug": "back-control-hooks",
+      "parentId": "back-control",
+      "path": ["back-control", "hooks"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "back-control.body-triangle",
+      "name": "Back Control (Body Triangle)",
+      "slug": "back-control-body-triangle",
+      "parentId": "back-control",
+      "path": ["back-control", "body-triangle"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "knee-on-belly",
+      "name": "Knee on Belly",
+      "slug": "knee-on-belly",
+      "parentId": null,
+      "path": ["knee-on-belly"],
+      "perspective": "top",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "turtle",
+      "name": "Turtle",
+      "slug": "turtle",
+      "parentId": null,
+      "path": ["turtle"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "bottom-mount",
+      "name": "Bottom Mount",
+      "slug": "bottom-mount",
+      "parentId": null,
+      "path": ["bottom-mount"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "bottom-side-control",
+      "name": "Bottom Side Control",
+      "slug": "bottom-side-control",
+      "parentId": null,
+      "path": ["bottom-side-control"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    },
+    {
+      "id": "back-exposed",
+      "name": "Back Exposed",
+      "slug": "back-exposed",
+      "parentId": null,
+      "path": ["back-exposed"],
+      "perspective": "bottom",
+      "giApplicable": true,
+      "nogiApplicable": true
+    }
+  ]
+}
