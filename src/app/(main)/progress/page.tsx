@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { differenceInCalendarDays } from "date-fns";
 
 import { useLocalSessions } from "@/hooks/use-local-sessions";
-import { positionsById, techniques } from "@/lib/taxonomy";
+import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 
 function sortCounts(entries: Record<string, number>) {
   return Object.entries(entries)
@@ -14,6 +14,7 @@ function sortCounts(entries: Record<string, number>) {
 
 export default function ProgressPage() {
   const { sessions } = useLocalSessions();
+  const { index } = useUserTaxonomy();
 
   const stats = useMemo(() => {
     const positionCounts: Record<string, number> = {};
@@ -30,14 +31,9 @@ export default function ProgressPage() {
             (positionCounts[technique.positionId] ?? 0) + 1;
         }
 
-        const key =
-          technique.techniqueId ??
-          (technique.techniqueNameOverride
-            ? `custom:${technique.techniqueNameOverride}`
-            : null);
-
-        if (key) {
-          techniqueCounts[key] = (techniqueCounts[key] ?? 0) + 1;
+        if (technique.techniqueId) {
+          techniqueCounts[technique.techniqueId] =
+            (techniqueCounts[technique.techniqueId] ?? 0) + 1;
         }
       }
     }
@@ -104,7 +100,7 @@ export default function ProgressPage() {
             <ol className="mt-3 space-y-2 text-sm text-zinc-600">
               {stats.topPositions.map(([positionId, count]) => (
                 <li key={positionId} className="flex items-center justify-between">
-                  <span>{positionsById.get(positionId)?.name ?? positionId}</span>
+                  <span>{index.positionsById.get(positionId)?.name ?? positionId}</span>
                   <span className="font-semibold text-zinc-800">{count}</span>
                 </li>
               ))}
@@ -117,14 +113,11 @@ export default function ProgressPage() {
             <p className="mt-2 text-sm text-zinc-600">No data yet.</p>
           ) : (
             <ol className="mt-3 space-y-2 text-sm text-zinc-600">
-              {stats.topTechniques.map(([key, count]) => {
-                const technique = techniques.find((item) => item.id === key);
-                const name = technique
-                  ? technique.name
-                  : key.replace("custom:", "");
+              {stats.topTechniques.map(([techniqueId, count]) => {
+                const technique = index.techniquesById.get(techniqueId);
                 return (
-                  <li key={key} className="flex items-center justify-between">
-                    <span>{name}</span>
+                  <li key={techniqueId} className="flex items-center justify-between">
+                    <span>{technique?.name ?? techniqueId}</span>
                     <span className="font-semibold text-zinc-800">{count}</span>
                   </li>
                 );

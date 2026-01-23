@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 
-import {
-  getChildPositions,
-  positions,
-  positionsById,
-  techniqueSearch,
-  techniques,
-} from "@/lib/taxonomy";
+import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 
-function PositionTree({ parentId, depth }: { parentId: string | null; depth: number }) {
-  const children = getChildPositions(parentId);
+function PositionTree({
+  parentId,
+  depth,
+  getChildren,
+}: {
+  parentId: string | null;
+  depth: number;
+  getChildren: (parentId: string | null) => { id: string; name: string }[];
+}) {
+  const children = getChildren(parentId);
 
   if (children.length === 0) {
     return null;
@@ -24,7 +26,11 @@ function PositionTree({ parentId, depth }: { parentId: string | null; depth: num
           <div className="text-sm font-semibold text-zinc-700">
             {position.name}
           </div>
-          <PositionTree parentId={position.id} depth={depth + 1} />
+          <PositionTree
+            parentId={position.id}
+            depth={depth + 1}
+            getChildren={getChildren}
+          />
         </div>
       ))}
     </div>
@@ -33,8 +39,9 @@ function PositionTree({ parentId, depth }: { parentId: string | null; depth: num
 
 export default function TaxonomyPage() {
   const [query, setQuery] = useState("");
+  const { index } = useUserTaxonomy();
   const results = query.trim()
-    ? techniqueSearch.search(query.trim()).map((result) => result.item)
+    ? index.techniqueSearch.search(query.trim()).map((result) => result.item)
     : [];
 
   return (
@@ -55,7 +62,7 @@ export default function TaxonomyPage() {
             Positions
           </p>
           <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {positions.length}
+            {index.positions.length}
           </p>
         </div>
         <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
@@ -63,7 +70,7 @@ export default function TaxonomyPage() {
             Techniques
           </p>
           <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {techniques.length}
+            {index.techniques.length}
           </p>
         </div>
         <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
@@ -71,7 +78,7 @@ export default function TaxonomyPage() {
             Root positions
           </p>
           <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {getChildPositions(null).length}
+            {index.rootPositions.length}
           </p>
         </div>
       </section>
@@ -79,7 +86,11 @@ export default function TaxonomyPage() {
       <section className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Position tree</h2>
         <div className="mt-4">
-          <PositionTree parentId={null} depth={0} />
+          <PositionTree
+            parentId={null}
+            depth={0}
+            getChildren={index.getChildren}
+          />
         </div>
       </section>
 
@@ -110,7 +121,7 @@ export default function TaxonomyPage() {
                     {technique.name}
                   </div>
                   <div className="text-xs text-zinc-500">
-                    From {positionsById.get(technique.positionFromId)?.name ?? "Unknown"}
+                    From {index.positionsById.get(technique.positionFromId)?.name ?? "Unknown"}
                   </div>
                 </div>
               ))

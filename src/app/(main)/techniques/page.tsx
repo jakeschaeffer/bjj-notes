@@ -2,31 +2,24 @@
 
 import { useMemo, useState } from "react";
 
-import {
-  getTechniquesByPosition,
-  positionsById,
-  positionsInTreeOrder,
-  techniqueSearch,
-  techniques,
-} from "@/lib/taxonomy";
-
-const positionOptions = positionsInTreeOrder;
+import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 
 export default function TechniquesPage() {
   const [query, setQuery] = useState("");
   const [selectedPosition, setSelectedPosition] = useState<string | "">("");
+  const { index } = useUserTaxonomy();
 
   const results = useMemo(() => {
     if (query.trim().length > 0) {
-      return techniqueSearch.search(query.trim()).map((result) => result.item);
+      return index.techniqueSearch.search(query.trim()).map((result) => result.item);
     }
 
     if (selectedPosition) {
-      return getTechniquesByPosition(selectedPosition);
+      return index.getTechniquesByPosition(selectedPosition);
     }
 
-    return techniques;
-  }, [query, selectedPosition]);
+    return index.techniquesByName;
+  }, [query, selectedPosition, index]);
 
   return (
     <div className="space-y-8">
@@ -59,16 +52,11 @@ export default function TechniquesPage() {
               className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
             >
               <option value="">All positions</option>
-              {positionOptions.map((position) => {
-                const depth = position.path.length - 1;
-                const prefix = depth > 0 ? `${"-".repeat(depth)} ` : "";
-                return (
-                  <option key={position.id} value={position.id}>
-                    {prefix}
-                    {position.name}
-                  </option>
-                );
-              })}
+              {index.positionsInTreeOrder.map((position) => (
+                <option key={position.id} value={position.id}>
+                  {index.getFullPath(position.id)}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -79,7 +67,9 @@ export default function TechniquesPage() {
 
       <section className="grid gap-3">
         {results.map((technique) => {
-          const positionName = positionsById.get(technique.positionFromId)?.name;
+          const positionName = index.positionsById.get(
+            technique.positionFromId,
+          )?.name;
           return (
             <div
               key={technique.id}

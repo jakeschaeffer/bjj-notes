@@ -15,14 +15,10 @@ export type ConfidenceLevel = 1 | 2 | 3 | 4 | 5;
 export interface SessionTechnique {
   id: ID;
   sessionId: ID;
-  techniqueId: ID | null;
-  techniqueNameOverride: string | null;
-  positionId: ID | null;
-  positionNameOverride: string | null;
-  wasNew: boolean;
-  confidence: ConfidenceLevel;
+  positionId: ID;
+  techniqueId: ID;
+  keyDetails: string[];
   notes: string;
-  keyDetailsLearned: string[];
 }
 
 export interface Session {

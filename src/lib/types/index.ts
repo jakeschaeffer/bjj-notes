@@ -12,3 +12,5 @@ export type {
   SessionTechnique,
   Session,
 } from "./session";
+
+export type { UserTag, TechniqueProgress } from "./taxonomy";

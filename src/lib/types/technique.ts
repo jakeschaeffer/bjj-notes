@@ -24,8 +24,11 @@ export interface Technique {
   name: string;
   category: TechniqueCategory;
   positionFromId: ID;
+  positionToId?: ID | null;
   submissionType: SubmissionType | null;
   giApplicable: boolean;
   nogiApplicable: boolean;
   aliases: string[];
+  keyDetails?: string[];
+  isCustom?: boolean;
 }

@@ -11,4 +11,5 @@ export interface Position {
   perspective: Perspective;
   giApplicable: boolean;
   nogiApplicable: boolean;
+  isCustom?: boolean;
 }

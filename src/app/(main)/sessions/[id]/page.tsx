@@ -5,12 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 
 import { useLocalSessions } from "@/hooks/use-local-sessions";
-import { positionsById, techniques } from "@/lib/taxonomy";
+import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 
 export default function SessionDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { getSessionById, deleteSession } = useLocalSessions();
+  const { index } = useUserTaxonomy();
   const sessionId = params?.id;
   const session = sessionId ? getSessionById(sessionId) : undefined;
 
@@ -30,13 +31,6 @@ export default function SessionDetailPage() {
       </div>
     );
   }
-
-  const techniqueName = (techniqueId: string | null) => {
-    if (!techniqueId) {
-      return null;
-    }
-    return techniques.find((item) => item.id === techniqueId)?.name ?? null;
-  };
 
   return (
     <div className="space-y-8">
@@ -97,18 +91,11 @@ export default function SessionDetailPage() {
         ) : (
           <div className="grid gap-3">
             {session.techniques.map((technique) => {
-              const name =
-                techniqueName(technique.techniqueId) ??
-                technique.techniqueNameOverride ??
-                "Unlabeled technique";
-              const positionBase = technique.positionId
-                ? positionsById.get(technique.positionId)?.name
-                : null;
-              const position = technique.positionNameOverride
-                ? positionBase
-                  ? `${technique.positionNameOverride} (${positionBase})`
-                  : technique.positionNameOverride
-                : positionBase;
+              const techniqueInfo = index.techniquesById.get(
+                technique.techniqueId,
+              );
+              const positionInfo = index.positionsById.get(technique.positionId);
+              const keyDetails = technique.keyDetails ?? [];
 
               return (
                 <div
@@ -116,16 +103,34 @@ export default function SessionDetailPage() {
                   className="rounded-xl border border-zinc-100 bg-zinc-50 p-4"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-zinc-800">{name}</h3>
-                    <span className="text-xs font-semibold text-amber-600">
-                      Confidence {technique.confidence}
-                    </span>
+                    <h3 className="text-sm font-semibold text-zinc-800">
+                      {techniqueInfo?.name ?? "Unknown technique"}
+                    </h3>
+                    {techniqueInfo ? (
+                      <span className="text-xs font-semibold text-amber-600">
+                        {techniqueInfo.category.replace(/-/g, " ")}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="mt-1 text-xs text-zinc-500">
-                    {position ?? "Position not set"}
+                    {positionInfo?.name ?? "Position not set"}
                   </div>
+                  {keyDetails.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {keyDetails.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {technique.notes ? (
-                    <p className="mt-2 text-sm text-zinc-600">{technique.notes}</p>
+                    <p className="mt-2 text-sm text-zinc-600">
+                      {technique.notes}
+                    </p>
                   ) : null}
                 </div>
               );

@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
-import {
-  getTechniquesByPosition,
-  positionsInTreeOrder,
-  techniques,
-} from "@/lib/taxonomy";
-import type { ConfidenceLevel, Session, SessionTechnique } from "@/lib/types";
-import { createId } from "@/lib/utils";
+import { PositionPicker } from "@/components/positions/position-picker";
+import { TechniquePicker } from "@/components/techniques/technique-picker";
+import { TagPicker } from "@/components/techniques/tag-picker";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
+import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
+import { COMMON_TAGS, normalizeTag } from "@/lib/taxonomy/tags";
+import type { Session, SessionTechnique, Technique } from "@/lib/types";
+import { createId } from "@/lib/utils";
 
 const sessionTypes = [
   "regular-class",
@@ -21,36 +21,87 @@ const sessionTypes = [
   "drilling-only",
 ] as const;
 
-const positionOptions = positionsInTreeOrder;
-
 type DraftTechnique = {
   id: string;
   positionId: string | null;
-  positionNameOverride: string;
   techniqueId: string | null;
-  techniqueNameOverride: string;
-  wasNew: boolean;
-  confidence: ConfidenceLevel;
+  keyDetails: string[];
   notes: string;
-  keyDetailsInput: string;
+  expanded: boolean;
+  notesExpanded: boolean;
 };
 
 function createDraftTechnique(): DraftTechnique {
   return {
     id: createId(),
     positionId: null,
-    positionNameOverride: "",
     techniqueId: null,
-    techniqueNameOverride: "",
-    wasNew: false,
-    confidence: 3,
+    keyDetails: [],
     notes: "",
-    keyDetailsInput: "",
+    expanded: false,
+    notesExpanded: false,
   };
 }
 
+function buildTagSuggestions(technique: Technique | null, userTags: string[]) {
+  const suggestions: string[] = [];
+  const seen = new Set<string>();
+
+  const addTags = (tags: string[] | undefined) => {
+    if (!tags) {
+      return;
+    }
+    for (const tag of tags) {
+      const normalized = normalizeTag(tag);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      suggestions.push(normalized);
+    }
+  };
+
+  addTags(technique?.keyDetails);
+  addTags(userTags);
+  addTags(COMMON_TAGS);
+
+  return suggestions;
+}
+
+function getRecentIds<T>(
+  items: T[],
+  extractId: (item: T) => string | null,
+  max: number,
+) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const item of items) {
+    const id = extractId(item);
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    result.push(id);
+    if (result.length >= max) {
+      break;
+    }
+  }
+
+  return result;
+}
+
 export default function LogSessionPage() {
-  const { addSession } = useLocalSessions();
+  const { sessions, addSession } = useLocalSessions();
+  const {
+    index,
+    tagSuggestions,
+    addCustomPosition,
+    addCustomTechnique,
+    recordTagUsage,
+    recordTechniqueProgress,
+  } = useUserTaxonomy();
+
   const [date, setDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
@@ -59,7 +110,6 @@ export default function LogSessionPage() {
   >(sessionTypes[0]);
   const [giOrNogi, setGiOrNogi] = useState<"gi" | "nogi" | "both">("gi");
   const [durationMinutes, setDurationMinutes] = useState<number | "">("");
-  const [energyLevel, setEnergyLevel] = useState<ConfidenceLevel | "">("");
   const [notes, setNotes] = useState("");
   const [insights, setInsights] = useState("");
   const [goalsForNext, setGoalsForNext] = useState("");
@@ -71,6 +121,23 @@ export default function LogSessionPage() {
     createDraftTechnique(),
   ]);
   const [saved, setSaved] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const recentPositionIds = useMemo(() => {
+    return getRecentIds(
+      sessions.flatMap((session) => session.techniques),
+      (technique) => technique.positionId,
+      5,
+    );
+  }, [sessions]);
+
+  const recentTechniqueIds = useMemo(() => {
+    return getRecentIds(
+      sessions.flatMap((session) => session.techniques),
+      (technique) => technique.techniqueId,
+      5,
+    );
+  }, [sessions]);
 
   function updateTechnique(id: string, update: Partial<DraftTechnique>) {
     setTechniqueDrafts((prev) =>
@@ -93,7 +160,6 @@ export default function LogSessionPage() {
     setSessionType(sessionTypes[0]);
     setGiOrNogi("gi");
     setDurationMinutes("");
-    setEnergyLevel("");
     setNotes("");
     setInsights("");
     setGoalsForNext("");
@@ -106,39 +172,28 @@ export default function LogSessionPage() {
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    setFormError("");
+
+    const incomplete = techniqueDrafts.filter(
+      (draft) => !draft.positionId || !draft.techniqueId,
+    );
+
+    if (incomplete.length > 0) {
+      setFormError("Select a position and technique for each entry.");
+      return;
+    }
 
     const now = new Date().toISOString();
     const sessionId = createId();
 
-    const techniquesDrilled: SessionTechnique[] = techniqueDrafts
-      .map((draft) => {
-        const keyDetails = draft.keyDetailsInput
-          .split(",")
-          .map((detail) => detail.trim())
-          .filter(Boolean);
-
-        return {
-          id: createId(),
-          sessionId,
-          techniqueId: draft.techniqueId,
-          techniqueNameOverride:
-            draft.techniqueId || draft.techniqueNameOverride.trim().length === 0
-              ? null
-              : draft.techniqueNameOverride.trim(),
-          positionId: draft.positionId,
-          positionNameOverride:
-            draft.positionNameOverride.trim().length === 0
-              ? null
-              : draft.positionNameOverride.trim(),
-          wasNew: draft.wasNew,
-          confidence: draft.confidence,
-          notes: draft.notes.trim(),
-          keyDetailsLearned: keyDetails,
-        };
-      })
-      .filter(
-        (item) => item.techniqueId || item.techniqueNameOverride !== null,
-      );
+    const techniquesDrilled: SessionTechnique[] = techniqueDrafts.map((draft) => ({
+      id: createId(),
+      sessionId,
+      positionId: draft.positionId as string,
+      techniqueId: draft.techniqueId as string,
+      keyDetails: draft.keyDetails,
+      notes: draft.notes.trim(),
+    }));
 
     const session: Session = {
       id: sessionId,
@@ -147,7 +202,7 @@ export default function LogSessionPage() {
       sessionType,
       giOrNogi,
       durationMinutes: durationMinutes === "" ? null : durationMinutes,
-      energyLevel: energyLevel === "" ? null : energyLevel,
+      energyLevel: null,
       techniques: techniquesDrilled,
       notes: notes.trim(),
       insights: insights
@@ -167,6 +222,15 @@ export default function LogSessionPage() {
     };
 
     addSession(session);
+    recordTechniqueProgress(
+      techniquesDrilled.map((item) => item.techniqueId),
+      now,
+    );
+    recordTagUsage(
+      techniquesDrilled.flatMap((item) => item.keyDetails),
+      now,
+    );
+
     setSaved(true);
     resetForm();
     setTimeout(() => setSaved(false), 1500);
@@ -251,31 +315,10 @@ export default function LogSessionPage() {
                 placeholder="Optional"
               />
             </label>
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
-              Energy level
-              <select
-                value={energyLevel}
-                onChange={(event) =>
-                  setEnergyLevel(
-                    event.target.value === ""
-                      ? ""
-                      : (Number(event.target.value) as ConfidenceLevel),
-                  )
-                }
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-              >
-                <option value="">Optional</option>
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
         </section>
 
-        <section className="space-y-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Techniques drilled</h2>
             <button
@@ -283,164 +326,120 @@ export default function LogSessionPage() {
               onClick={addTechnique}
               className="rounded-full border border-zinc-200 px-4 py-1.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
             >
-              Add technique
+              Add another technique
             </button>
           </div>
 
-          <div className="space-y-4">
-            {techniqueDrafts.map((draft, index) => {
-              const availableTechniques = draft.positionId
-                ? getTechniquesByPosition(draft.positionId)
-                : techniques;
+          {techniqueDrafts.map((draft, indexValue) => {
+            const technique = draft.techniqueId
+              ? index.techniquesById.get(draft.techniqueId) ?? null
+              : null;
+            const suggestions = buildTagSuggestions(technique, tagSuggestions);
 
-              return (
-                <div
-                  key={draft.id}
-                  className="rounded-xl border border-zinc-100 bg-zinc-50 p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-zinc-700">
-                      Technique {index + 1}
-                    </p>
-                    {techniqueDrafts.length > 1 ? (
-                      <button
-                        type="button"
-                        onClick={() => removeTechnique(draft.id)}
-                        className="text-xs font-semibold text-zinc-500 transition hover:text-red-500"
-                      >
-                        Remove
-                      </button>
-                    ) : null}
+            return (
+              <div
+                key={draft.id}
+                className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold text-zinc-700">
+                    Technique {indexValue + 1}
+                  </h3>
+                  {techniqueDrafts.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeTechnique(draft.id)}
+                      className="text-xs font-semibold text-zinc-500 transition hover:text-red-500"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 text-sm font-medium text-zinc-700">
+                    <span>Position</span>
+                    <PositionPicker
+                      value={draft.positionId}
+                      onChange={(positionId) =>
+                        updateTechnique(draft.id, {
+                          positionId,
+                          techniqueId: null,
+                        })
+                      }
+                      recentPositionIds={recentPositionIds}
+                      index={index}
+                      onAddCustomPosition={addCustomPosition}
+                    />
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <label className="space-y-2 text-sm font-medium text-zinc-700">
-                      Position
-                      <select
-                        value={draft.positionId ?? ""}
-                        onChange={(event) =>
-                          updateTechnique(draft.id, {
-                            positionId: event.target.value || null,
-                            techniqueId: null,
-                          })
-                        }
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      >
-                        <option value="">Select position</option>
-                        {positionOptions.map((position) => {
-                          const depth = position.path.length - 1;
-                          const prefix = depth > 0 ? `${"-".repeat(depth)} ` : "";
-                          return (
-                            <option key={position.id} value={position.id}>
-                              {prefix}
-                              {position.name}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </label>
-                    <label className="space-y-2 text-sm font-medium text-zinc-700">
-                      Position detail (optional)
-                      <input
-                        value={draft.positionNameOverride}
-                        onChange={(event) =>
-                          updateTechnique(draft.id, {
-                            positionNameOverride: event.target.value,
-                          })
-                        }
-                        placeholder="e.g. Octopus guard"
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="space-y-2 text-sm font-medium text-zinc-700">
-                      Technique
-                      <select
-                        value={draft.techniqueId ?? ""}
-                        onChange={(event) =>
-                          updateTechnique(draft.id, {
-                            techniqueId: event.target.value || null,
-                          })
-                        }
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      >
-                        <option value="">Select technique</option>
-                        {availableTechniques.map((technique) => (
-                          <option key={technique.id} value={technique.id}>
-                            {technique.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="space-y-2 text-sm font-medium text-zinc-700">
-                      Custom name (optional)
-                      <input
-                        value={draft.techniqueNameOverride}
-                        onChange={(event) =>
-                          updateTechnique(draft.id, {
-                            techniqueNameOverride: event.target.value,
-                          })
-                        }
-                        placeholder="e.g. Knee shield entry"
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="space-y-2 text-sm font-medium text-zinc-700">
-                      Confidence
-                      <select
-                        value={draft.confidence}
-                        onChange={(event) =>
-                          updateTechnique(draft.id, {
-                            confidence: Number(event.target.value) as ConfidenceLevel,
-                          })
-                        }
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      >
-                        {[1, 2, 3, 4, 5].map((value) => (
-                          <option key={value} value={value}>
-                            {value}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex items-center gap-2 text-sm font-medium text-zinc-700">
-                      <input
-                        type="checkbox"
-                        checked={draft.wasNew}
-                        onChange={(event) =>
-                          updateTechnique(draft.id, { wasNew: event.target.checked })
-                        }
-                        className="h-4 w-4 rounded border-zinc-300"
-                      />
-                      New to me
-                    </label>
-                    <label className="space-y-2 text-sm font-medium text-zinc-700">
-                      Notes
-                      <input
-                        value={draft.notes}
-                        onChange={(event) =>
-                          updateTechnique(draft.id, { notes: event.target.value })
-                        }
-                        placeholder="Short reminder"
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                    </label>
-                    <label className="space-y-2 text-sm font-medium text-zinc-700 sm:col-span-2">
-                      Key details (comma separated)
-                      <input
-                        value={draft.keyDetailsInput}
-                        onChange={(event) =>
-                          updateTechnique(draft.id, {
-                            keyDetailsInput: event.target.value,
-                          })
-                        }
-                        placeholder="hip angle, underhook, base"
-                        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                      />
-                    </label>
+                  <div className="space-y-2 text-sm font-medium text-zinc-700">
+                    <span>Technique</span>
+                    <TechniquePicker
+                      value={draft.techniqueId}
+                      positionId={draft.positionId}
+                      onChange={(techniqueId) =>
+                        updateTechnique(draft.id, { techniqueId })
+                      }
+                      recentTechniqueIds={recentTechniqueIds}
+                      index={index}
+                      onAddCustomTechnique={addCustomTechnique}
+                    />
                   </div>
                 </div>
-              );
-            })}
-          </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateTechnique(draft.id, { expanded: !draft.expanded })
+                  }
+                  className="mt-4 text-xs font-semibold text-zinc-500"
+                >
+                  {draft.expanded ? "Collapse details" : "Add details"}
+                </button>
+
+                {draft.expanded ? (
+                  <div className="mt-4 space-y-4 rounded-xl border border-zinc-100 bg-zinc-50 p-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-zinc-700">Key details</p>
+                      <TagPicker
+                        value={draft.keyDetails}
+                        suggestions={suggestions}
+                        onChange={(tags) =>
+                          updateTechnique(draft.id, { keyDetails: tags })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      {!draft.notesExpanded && draft.notes.length === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateTechnique(draft.id, { notesExpanded: true })
+                          }
+                          className="text-xs font-semibold text-zinc-500"
+                        >
+                          Add notes
+                        </button>
+                      ) : (
+                        <label className="space-y-2 text-sm font-medium text-zinc-700">
+                          Notes
+                          <textarea
+                            value={draft.notes}
+                            onChange={(event) =>
+                              updateTechnique(draft.id, {
+                                notes: event.target.value,
+                                notesExpanded: true,
+                              })
+                            }
+                            className="min-h-[90px] w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </section>
 
         <section className="grid gap-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
@@ -519,6 +518,10 @@ export default function LogSessionPage() {
             </label>
           </div>
         </section>
+
+        {formError ? (
+          <p className="text-sm font-semibold text-red-500">{formError}</p>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-4">
           <button
