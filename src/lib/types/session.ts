@@ -12,6 +12,8 @@ export type GiNoGi = "gi" | "nogi" | "both";
 
 export type ConfidenceLevel = 1 | 2 | 3 | 4 | 5;
 
+export type BeltLevel = "white" | "blue" | "purple" | "brown" | "black" | "unknown";
+
 export interface SessionTechnique {
   id: ID;
   sessionId: ID;
@@ -19,6 +21,40 @@ export interface SessionTechnique {
   techniqueId: ID;
   keyDetails: string[];
   notes: string;
+}
+
+export interface SessionPositionNote {
+  id: ID;
+  sessionId: ID;
+  positionId: ID;
+  keyDetails: string[];
+  notes: string;
+}
+
+export interface RoundSubmission {
+  id: ID;
+  techniqueId: ID;
+  positionId: ID | null;
+}
+
+export interface SparringRound {
+  id: ID;
+  partnerName: string | null;
+  partnerBelt: BeltLevel | null;
+  submissionsFor: RoundSubmission[];
+  submissionsAgainst: RoundSubmission[];
+  submissionsForCount: number;
+  submissionsAgainstCount: number;
+  dominantPositions: ID[];
+  stuckPositions: ID[];
+  notes: string;
+}
+
+export interface PartnerName {
+  id: ID;
+  name: string;
+  roundCount: number;
+  lastUsedAt: Timestamp;
 }
 
 export interface Session {
@@ -30,13 +66,17 @@ export interface Session {
   durationMinutes: number | null;
   energyLevel: ConfidenceLevel | null;
   techniques: SessionTechnique[];
+  positionNotes: SessionPositionNote[];
+  sparringRounds: SparringRound[];
   notes: string;
   insights: string[];
   goalsForNext: string[];
-  sparringRounds: number;
-  subsAchieved: number;
-  subsReceived: number;
-  sparringNotes: string;
+  legacySparring?: {
+    rounds: number;
+    subsAchieved: number;
+    subsReceived: number;
+    notes: string;
+  };
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

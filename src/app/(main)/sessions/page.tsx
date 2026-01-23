@@ -38,6 +38,33 @@ export default function SessionsPage() {
         <div className="grid gap-4">
           {sessions.map((session) => {
             const techniquesCount = session.techniques.length;
+            const roundCount = session.sparringRounds.length;
+            const subsForCount = session.sparringRounds.reduce(
+              (sum, round) =>
+                sum +
+                (typeof round.submissionsForCount === "number"
+                  ? round.submissionsForCount
+                  : round.submissionsFor.length),
+              0,
+            );
+            const subsAgainstCount = session.sparringRounds.reduce(
+              (sum, round) =>
+                sum +
+                (typeof round.submissionsAgainstCount === "number"
+                  ? round.submissionsAgainstCount
+                  : round.submissionsAgainst.length),
+              0,
+            );
+            const useLegacy = roundCount === 0 && session.legacySparring;
+            const displayRounds = useLegacy
+              ? session.legacySparring?.rounds ?? 0
+              : roundCount;
+            const displaySubsFor = useLegacy
+              ? session.legacySparring?.subsAchieved ?? 0
+              : subsForCount;
+            const displaySubsAgainst = useLegacy
+              ? session.legacySparring?.subsReceived ?? 0
+              : subsAgainstCount;
             return (
               <Link
                 key={session.id}
@@ -58,8 +85,8 @@ export default function SessionsPage() {
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-4 text-sm text-zinc-600">
-                  <span>Rounds: {session.sparringRounds}</span>
-                  <span>Subs: +{session.subsAchieved} / -{session.subsReceived}</span>
+                  <span>Rounds: {displayRounds}</span>
+                  <span>Subs: +{displaySubsFor} / -{displaySubsAgainst}</span>
                 </div>
               </Link>
             );

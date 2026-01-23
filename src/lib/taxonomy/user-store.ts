@@ -1,4 +1,10 @@
-import type { Position, Technique } from "@/lib/types";
+import type {
+  PartnerName,
+  Position,
+  Technique,
+  UserPositionNote,
+  UserTechniqueNote,
+} from "@/lib/types";
 import type { TechniqueProgress, UserTag } from "@/lib/types";
 
 const STORAGE_KEY = "bjj-notes:user-taxonomy";
@@ -8,6 +14,9 @@ export type UserTaxonomyState = {
   techniques: Technique[];
   tags: UserTag[];
   progress: TechniqueProgress[];
+  partners: PartnerName[];
+  techniqueNotes: UserTechniqueNote[];
+  positionNotes: UserPositionNote[];
 };
 
 const emptyState: UserTaxonomyState = {
@@ -15,6 +24,9 @@ const emptyState: UserTaxonomyState = {
   techniques: [],
   tags: [],
   progress: [],
+  partners: [],
+  techniqueNotes: [],
+  positionNotes: [],
 };
 
 const listeners = new Set<() => void>();
@@ -42,6 +54,13 @@ function loadState(): UserTaxonomyState {
         techniques: Array.isArray(parsed.techniques) ? parsed.techniques : [],
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
         progress: Array.isArray(parsed.progress) ? parsed.progress : [],
+        partners: Array.isArray(parsed.partners) ? parsed.partners : [],
+        techniqueNotes: Array.isArray(parsed.techniqueNotes)
+          ? parsed.techniqueNotes
+          : [],
+        positionNotes: Array.isArray(parsed.positionNotes)
+          ? parsed.positionNotes
+          : [],
       } as UserTaxonomyState;
     }
   } catch {

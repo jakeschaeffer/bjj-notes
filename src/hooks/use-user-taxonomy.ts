@@ -3,7 +3,12 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 import { createId, slugify } from "@/lib/utils";
-import type { Perspective } from "@/lib/types";
+import type {
+  PartnerName,
+  Perspective,
+  UserPositionNote,
+  UserTechniqueNote,
+} from "@/lib/types";
 import type { Position, Technique, TechniqueCategory } from "@/lib/types";
 import type { TechniqueProgress, UserTag } from "@/lib/types";
 import {
@@ -23,6 +28,9 @@ const emptyState = {
   techniques: [],
   tags: [],
   progress: [],
+  partners: [],
+  techniqueNotes: [],
+  positionNotes: [],
 };
 
 export function useUserTaxonomy() {
@@ -196,6 +204,45 @@ export function useUserTaxonomy() {
     [],
   );
 
+  const recordPartnerNames = useCallback((names: string[], timestamp: string) => {
+    if (names.length === 0) {
+      return;
+    }
+
+    updateUserTaxonomy((prev) => {
+      const updatedPartners: PartnerName[] = [...prev.partners];
+
+      for (const rawName of names) {
+        const name = rawName.trim();
+        if (!name) {
+          continue;
+        }
+
+        const normalized = name.toLowerCase();
+        const existing = updatedPartners.find(
+          (item) => item.name.toLowerCase() === normalized,
+        );
+
+        if (existing) {
+          existing.roundCount += 1;
+          existing.lastUsedAt = timestamp;
+        } else {
+          updatedPartners.push({
+            id: createId(),
+            name,
+            roundCount: 1,
+            lastUsedAt: timestamp,
+          });
+        }
+      }
+
+      return {
+        ...prev,
+        partners: updatedPartners,
+      };
+    });
+  }, []);
+
   const tagSuggestions = useMemo(() => {
     return [...state.tags]
       .sort((a, b) => {
@@ -207,6 +254,103 @@ export function useUserTaxonomy() {
       .map((item) => item.tag);
   }, [state.tags]);
 
+  const partnerSuggestions = useMemo(() => {
+    return [...state.partners]
+      .sort((a, b) => {
+        if (b.roundCount === a.roundCount) {
+          return b.lastUsedAt.localeCompare(a.lastUsedAt);
+        }
+        return b.roundCount - a.roundCount;
+      })
+      .map((item) => item.name);
+  }, [state.partners]);
+
+  const techniqueNotesById = useMemo(() => {
+    const map = new Map<string, UserTechniqueNote>();
+    for (const note of state.techniqueNotes) {
+      map.set(note.techniqueId, note);
+    }
+    return map;
+  }, [state.techniqueNotes]);
+
+  const positionNotesById = useMemo(() => {
+    const map = new Map<string, UserPositionNote>();
+    for (const note of state.positionNotes) {
+      map.set(note.positionId, note);
+    }
+    return map;
+  }, [state.positionNotes]);
+
+  const updateTechniqueNote = useCallback((techniqueId: string, notes: string) => {
+    const trimmed = notes.trim();
+    const now = new Date().toISOString();
+
+    updateUserTaxonomy((prev) => {
+      const nextNotes = prev.techniqueNotes.filter(
+        (note) => note.techniqueId !== techniqueId,
+      );
+
+      if (!trimmed) {
+        return {
+          ...prev,
+          techniqueNotes: nextNotes,
+        };
+      }
+
+      const existing = prev.techniqueNotes.find(
+        (note) => note.techniqueId === techniqueId,
+      );
+
+      nextNotes.push({
+        id: existing?.id ?? createId(),
+        techniqueId,
+        notes: trimmed,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      });
+
+      return {
+        ...prev,
+        techniqueNotes: nextNotes,
+      };
+    });
+  }, []);
+
+  const updatePositionNote = useCallback((positionId: string, notes: string) => {
+    const trimmed = notes.trim();
+    const now = new Date().toISOString();
+
+    updateUserTaxonomy((prev) => {
+      const nextNotes = prev.positionNotes.filter(
+        (note) => note.positionId !== positionId,
+      );
+
+      if (!trimmed) {
+        return {
+          ...prev,
+          positionNotes: nextNotes,
+        };
+      }
+
+      const existing = prev.positionNotes.find(
+        (note) => note.positionId === positionId,
+      );
+
+      nextNotes.push({
+        id: existing?.id ?? createId(),
+        positionId,
+        notes: trimmed,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      });
+
+      return {
+        ...prev,
+        positionNotes: nextNotes,
+      };
+    });
+  }, []);
+
   return {
     positions,
     techniques,
@@ -214,9 +358,18 @@ export function useUserTaxonomy() {
     tags: state.tags,
     tagSuggestions,
     progress: state.progress,
+    partners: state.partners,
+    partnerSuggestions,
+    techniqueNotes: state.techniqueNotes,
+    positionNotes: state.positionNotes,
+    techniqueNotesById,
+    positionNotesById,
     addCustomPosition,
     addCustomTechnique,
     recordTagUsage,
     recordTechniqueProgress,
+    recordPartnerNames,
+    updateTechniqueNote,
+    updatePositionNote,
   };
 }

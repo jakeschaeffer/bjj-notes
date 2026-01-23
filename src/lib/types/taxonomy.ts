@@ -15,3 +15,19 @@ export interface TechniqueProgress {
   lastDrilledAt: Timestamp;
   timesDrilled: number;
 }
+
+export interface UserTechniqueNote {
+  id: ID;
+  techniqueId: ID;
+  notes: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface UserPositionNote {
+  id: ID;
+  positionId: ID;
+  notes: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}

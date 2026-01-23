@@ -73,7 +73,7 @@ export function TechniquePicker({
       }
     }
     return items;
-  }, [recentTechniqueIds, index.techniquesByName]);
+  }, [recentTechniqueIds, index.techniquesById]);
 
   const suggestedTechniques = useMemo(() => {
     if (!positionId) {

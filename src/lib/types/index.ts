@@ -10,7 +10,17 @@ export type {
   GiNoGi,
   ConfidenceLevel,
   SessionTechnique,
+  SessionPositionNote,
+  BeltLevel,
+  RoundSubmission,
+  SparringRound,
+  PartnerName,
   Session,
 } from "./session";
 
-export type { UserTag, TechniqueProgress } from "./taxonomy";
+export type {
+  UserTag,
+  TechniqueProgress,
+  UserTechniqueNote,
+  UserPositionNote,
+} from "./taxonomy";
