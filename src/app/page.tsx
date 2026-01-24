@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { AccountActions } from "@/components/auth/account-actions";
+
 export default function Home() {
   const actions = [
     {
@@ -26,11 +28,14 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-white text-zinc-900">
-      <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-16 sm:py-20">
-        <header className="space-y-5">
+      <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 sm:py-14">
+        <header className="flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500">
             BJJ Notes
           </p>
+          <AccountActions />
+        </header>
+        <header className="space-y-5">
           <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
             Train. Log. Improve.
           </h1>

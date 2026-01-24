@@ -30,7 +30,7 @@ export function loadSessions(): Session[] {
   return [];
 }
 
-function normalizeSession(raw: Session) {
+export function normalizeSession(raw: Session) {
   const legacyRounds =
     typeof (raw as unknown as { sparringRounds?: unknown }).sparringRounds ===
     "number"

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { supabase } from "@/db/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { createId, slugify } from "@/lib/utils";
 import type {
   PartnerName,
@@ -17,13 +19,18 @@ import {
   systemTechniques,
 } from "@/lib/taxonomy";
 import { normalizeTag } from "@/lib/taxonomy/tags";
-import {
-  getSnapshot,
-  subscribe,
-  updateUserTaxonomy,
-} from "@/lib/taxonomy/user-store";
 
-const emptyState = {
+type UserTaxonomyState = {
+  positions: Position[];
+  techniques: Technique[];
+  tags: UserTag[];
+  progress: TechniqueProgress[];
+  partners: PartnerName[];
+  techniqueNotes: UserTechniqueNote[];
+  positionNotes: UserPositionNote[];
+};
+
+const emptyState: UserTaxonomyState = {
   positions: [],
   techniques: [],
   tags: [],
@@ -34,7 +41,95 @@ const emptyState = {
 };
 
 export function useUserTaxonomy() {
-  const state = useSyncExternalStore(subscribe, getSnapshot, () => emptyState);
+  const { user, loading: authLoading } = useAuth();
+  const [state, setState] = useState<UserTaxonomyState>(emptyState);
+
+  const persistState = useCallback(
+    async (next: UserTaxonomyState) => {
+      if (!user) {
+        return;
+      }
+
+      const { error } = await supabase.from("user_taxonomy").upsert({
+        user_id: user.id,
+        data: next,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error("Failed to save taxonomy", error.message);
+      }
+    },
+    [user],
+  );
+
+  const updateState = useCallback(
+    (updater: (prev: UserTaxonomyState) => UserTaxonomyState) => {
+      setState((prev) => {
+        const next = updater(prev);
+        void persistState(next);
+        return next;
+      });
+    },
+    [persistState],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (authLoading) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!user) {
+      Promise.resolve().then(() => {
+        if (!cancelled) {
+          setState(emptyState);
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const load = async () => {
+      const { data, error } = await supabase
+        .from("user_taxonomy")
+        .select("data")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (cancelled) {
+        return;
+      }
+
+      if (error) {
+        console.error("Failed to load taxonomy", error.message);
+        setState(emptyState);
+        return;
+      }
+
+      const stored = (data?.data as UserTaxonomyState | undefined) ?? emptyState;
+      setState({
+        ...emptyState,
+        ...stored,
+        positions: stored.positions ?? [],
+        techniques: stored.techniques ?? [],
+        tags: stored.tags ?? [],
+        progress: stored.progress ?? [],
+        partners: stored.partners ?? [],
+        techniqueNotes: stored.techniqueNotes ?? [],
+        positionNotes: stored.positionNotes ?? [],
+      });
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
 
   const positions = useMemo<Position[]>(
     () => [...systemPositions, ...state.positions],
@@ -78,14 +173,14 @@ export function useUserTaxonomy() {
         isCustom: true,
       };
 
-      updateUserTaxonomy((prev) => ({
+      updateState((prev) => ({
         ...prev,
         positions: [...prev.positions, position],
       }));
 
       return position;
     },
-    [index.positionsById],
+    [index.positionsById, updateState],
   );
 
   const addCustomTechnique = useCallback(
@@ -121,14 +216,14 @@ export function useUserTaxonomy() {
         isCustom: true,
       };
 
-      updateUserTaxonomy((prev) => ({
+      updateState((prev) => ({
         ...prev,
         techniques: [...prev.techniques, technique],
       }));
 
       return technique;
     },
-    [index.positionsById],
+    [index.positionsById, updateState],
   );
 
   const recordTagUsage = useCallback((tags: string[], timestamp: string) => {
@@ -136,7 +231,7 @@ export function useUserTaxonomy() {
       return;
     }
 
-    updateUserTaxonomy((prev) => {
+    updateState((prev) => {
       const updatedTags: UserTag[] = [...prev.tags];
 
       for (const rawTag of tags) {
@@ -165,7 +260,7 @@ export function useUserTaxonomy() {
         tags: updatedTags,
       };
     });
-  }, []);
+  }, [updateState]);
 
   const recordTechniqueProgress = useCallback(
     (techniqueIds: string[], timestamp: string) => {
@@ -173,7 +268,7 @@ export function useUserTaxonomy() {
         return;
       }
 
-      updateUserTaxonomy((prev) => {
+      updateState((prev) => {
         const updatedProgress: TechniqueProgress[] = [...prev.progress];
 
         for (const techniqueId of techniqueIds) {
@@ -201,7 +296,7 @@ export function useUserTaxonomy() {
         };
       });
     },
-    [],
+    [updateState],
   );
 
   const recordPartnerNames = useCallback((names: string[], timestamp: string) => {
@@ -209,7 +304,7 @@ export function useUserTaxonomy() {
       return;
     }
 
-    updateUserTaxonomy((prev) => {
+    updateState((prev) => {
       const updatedPartners: PartnerName[] = [...prev.partners];
 
       for (const rawName of names) {
@@ -241,7 +336,7 @@ export function useUserTaxonomy() {
         partners: updatedPartners,
       };
     });
-  }, []);
+  }, [updateState]);
 
   const tagSuggestions = useMemo(() => {
     return [...state.tags]
@@ -285,7 +380,7 @@ export function useUserTaxonomy() {
     const trimmed = notes.trim();
     const now = new Date().toISOString();
 
-    updateUserTaxonomy((prev) => {
+    updateState((prev) => {
       const nextNotes = prev.techniqueNotes.filter(
         (note) => note.techniqueId !== techniqueId,
       );
@@ -314,13 +409,13 @@ export function useUserTaxonomy() {
         techniqueNotes: nextNotes,
       };
     });
-  }, []);
+  }, [updateState]);
 
   const updatePositionNote = useCallback((positionId: string, notes: string) => {
     const trimmed = notes.trim();
     const now = new Date().toISOString();
 
-    updateUserTaxonomy((prev) => {
+    updateState((prev) => {
       const nextNotes = prev.positionNotes.filter(
         (note) => note.positionId !== positionId,
       );
@@ -349,7 +444,7 @@ export function useUserTaxonomy() {
         positionNotes: nextNotes,
       };
     });
-  }, []);
+  }, [updateState]);
 
   return {
     positions,

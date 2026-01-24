@@ -9,6 +9,7 @@ import { TechniquePicker } from "@/components/techniques/technique-picker";
 import { TagPicker } from "@/components/techniques/tag-picker";
 import { Modal } from "@/components/ui/modal";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
+import { useAuth } from "@/hooks/use-auth";
 import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 import { COMMON_TAGS, normalizeTag } from "@/lib/taxonomy/tags";
 import type {
@@ -180,6 +181,7 @@ function getRecentIds<T>(
 
 export default function LogSessionPage() {
   const { sessions, addSession } = useLocalSessions();
+  const { user } = useAuth();
   const {
     index,
     tagSuggestions,
@@ -619,6 +621,10 @@ export default function LogSessionPage() {
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setFormError("");
+    if (!user) {
+      setFormError("You must be signed in to save a session.");
+      return;
+    }
 
     const filledDrafts = techniqueDrafts.filter(
       (draft) =>
@@ -680,7 +686,7 @@ export default function LogSessionPage() {
 
     const session: Session = {
       id: sessionId,
-      userId: "local",
+      userId: user.id,
       date,
       sessionType,
       giOrNogi,

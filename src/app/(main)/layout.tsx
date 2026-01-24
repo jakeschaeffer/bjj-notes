@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+import { AuthGuard } from "@/components/auth/auth-guard";
+import { AccountActions } from "@/components/auth/account-actions";
+
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/log", label: "Log" },
@@ -21,21 +24,24 @@ export default function MainLayout({
           <Link href="/" className="text-lg font-semibold tracking-tight">
             BJJ Notes
           </Link>
-          <nav className="flex flex-wrap gap-3 text-sm font-medium text-zinc-600">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="rounded-full px-3 py-1 transition hover:bg-amber-100/80 hover:text-zinc-900"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          <div className="flex flex-wrap items-center gap-4">
+            <nav className="flex flex-wrap gap-3 text-sm font-medium text-zinc-600">
+              {navLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="rounded-full px-3 py-1 transition hover:bg-amber-100/80 hover:text-zinc-900"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+            <AccountActions />
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl px-6 py-10">
-        {children}
+        <AuthGuard>{children}</AuthGuard>
       </main>
     </div>
   );
