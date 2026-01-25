@@ -7,11 +7,21 @@ import Fuse from "fuse.js";
 import { PositionPicker } from "@/components/positions/position-picker";
 import { TechniquePicker } from "@/components/techniques/technique-picker";
 import { TagPicker } from "@/components/techniques/tag-picker";
+import {
+  ExtractionReviewPanel,
+  type UnmatchedItem,
+} from "@/components/extraction/extraction-review-panel";
 import { Modal } from "@/components/ui/modal";
+import { supabase } from "@/db/supabase/client";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
 import { useAuth } from "@/hooks/use-auth";
 import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 import { COMMON_TAGS, normalizeTag } from "@/lib/taxonomy/tags";
+import {
+  matchExtraction,
+  type ExtractionPayload,
+  type MatchedExtraction,
+} from "@/lib/extraction/match-taxonomy";
 import type {
   BeltLevel,
   RoundSubmission,
@@ -230,6 +240,20 @@ export default function LogSessionPage() {
   } | null>(null);
   const [customSubmissionName, setCustomSubmissionName] = useState("");
   const [customSubmissionPositionId, setCustomSubmissionPositionId] = useState("");
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioStatus, setAudioStatus] = useState<
+    "idle" | "uploading" | "success" | "error"
+  >("idle");
+  const [audioMessage, setAudioMessage] = useState("");
+  const [audioResult, setAudioResult] = useState<{
+    transcriptId: string;
+    extractionId: string;
+  } | null>(null);
+  const [matchedExtraction, setMatchedExtraction] = useState<MatchedExtraction | null>(null);
+  const [rawExtraction, setRawExtraction] = useState<ExtractionPayload | null>(null);
+  const [extractionLoading, setExtractionLoading] = useState(false);
+  const [createUnmatchedItem, setCreateUnmatchedItem] = useState<UnmatchedItem | null>(null);
+  const [showExtractionDebug, setShowExtractionDebug] = useState(false);
   const [saved, setSaved] = useState(false);
   const [formError, setFormError] = useState("");
 
@@ -533,6 +557,261 @@ export default function LogSessionPage() {
     setAmbiguousSubmission(null);
   }
 
+  async function handleAudioUpload() {
+    if (!audioFile) {
+      setAudioStatus("error");
+      setAudioMessage("Choose an audio file to upload.");
+      return;
+    }
+
+    if (!user) {
+      setAudioStatus("error");
+      setAudioMessage("You need to be signed in to upload audio.");
+      return;
+    }
+
+    setAudioStatus("uploading");
+    setAudioMessage("");
+    setAudioResult(null);
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      setAudioStatus("error");
+      setAudioMessage("Could not read your auth session. Try again.");
+      return;
+    }
+
+    const form = new FormData();
+    form.append("file", audioFile);
+    form.append("source", "audio_upload");
+
+    try {
+      const response = await fetch("/api/transcripts", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: form,
+      });
+
+      const contentType = response.headers.get("content-type") ?? "";
+      let result:
+        | { id: string; extractionId: string; status?: string }
+        | { error: string }
+        | null = null;
+
+      if (contentType.includes("application/json")) {
+        result = (await response.json()) as
+          | { id: string; extractionId: string; status?: string }
+          | { error: string };
+      } else {
+        const text = await response.text();
+        result = text ? { error: text } : null;
+      }
+
+      if (!response.ok || (result && "error" in result)) {
+        const rawMessage =
+          result && "error" in result ? result.error : "Upload failed. Try again.";
+        const safeMessage =
+          rawMessage.includes("<html") || rawMessage.includes("<!DOCTYPE")
+            ? "Upload failed. Check the server logs for details."
+            : rawMessage;
+        setAudioStatus("error");
+        setAudioMessage(safeMessage);
+        return;
+      }
+
+      if (!result || !("id" in result) || !result.id || !("extractionId" in result)) {
+        setAudioStatus("error");
+        setAudioMessage("Upload failed. Try again.");
+        return;
+      }
+
+      setAudioStatus("success");
+      setAudioMessage("Audio uploaded. Draft extraction is ready for review.");
+      setAudioResult({
+        transcriptId: result.id,
+        extractionId: result.extractionId,
+      });
+
+      // Fetch and match the extraction
+      fetchAndMatchExtraction(result.extractionId, token);
+    } catch (error) {
+      setAudioStatus("error");
+      setAudioMessage(
+        error instanceof Error ? error.message : "Upload failed. Try again.",
+      );
+    }
+  }
+
+  async function fetchAndMatchExtraction(extractionId: string, token: string) {
+    setExtractionLoading(true);
+    try {
+      const response = await fetch(`/api/extractions/${extractionId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = (await response.json()) as {
+        extractedPayload: ExtractionPayload;
+      };
+
+      if (data.extractedPayload) {
+        // Store raw extraction for debug modal
+        setRawExtraction(data.extractedPayload);
+
+        const matched = matchExtraction(data.extractedPayload, index);
+        setMatchedExtraction(matched);
+
+        // Auto-apply the extraction to populate the form
+        applyExtractionData(matched);
+      }
+    } catch {
+      // Silently fail - extraction review is optional
+    } finally {
+      setExtractionLoading(false);
+    }
+  }
+
+  function applyExtractionData(extraction: MatchedExtraction) {
+    const { session, sparringRounds } = extraction;
+
+    // Apply session details
+    if (session.date) {
+      // Try to parse date - it may come in various formats
+      const parsed = new Date(session.date);
+      if (!isNaN(parsed.getTime())) {
+        setDate(parsed.toISOString().slice(0, 10));
+      }
+    }
+    if (session.giOrNogi) {
+      setGiOrNogi(session.giOrNogi);
+    }
+    if (session.sessionType) {
+      const matchedType = sessionTypes.find(
+        (t) => t.toLowerCase().replace(/-/g, " ") === session.sessionType.toLowerCase(),
+      );
+      if (matchedType) {
+        setSessionType(matchedType);
+      }
+    }
+
+    // Apply techniques
+    if (session.techniques.length > 0 || session.positionNotes.length > 0) {
+      const newDrafts: DraftTechnique[] = [];
+
+      for (const tech of session.techniques) {
+        newDrafts.push({
+          id: createId(),
+          positionId: tech.positionMatch?.item.id ?? null,
+          techniqueId: tech.techniqueMatch?.item.id ?? null,
+          keyDetails: tech.keyDetails,
+          notes: tech.notes,
+          expanded: tech.keyDetails.length > 0 || Boolean(tech.notes),
+          notesExpanded: Boolean(tech.notes),
+        });
+      }
+
+      for (const note of session.positionNotes) {
+        newDrafts.push({
+          id: createId(),
+          positionId: note.positionMatch?.item.id ?? null,
+          techniqueId: null,
+          keyDetails: note.keyDetails,
+          notes: note.notes,
+          expanded: note.keyDetails.length > 0 || Boolean(note.notes),
+          notesExpanded: Boolean(note.notes),
+        });
+      }
+
+      if (newDrafts.length > 0) {
+        setTechniqueDrafts(newDrafts);
+      }
+    }
+
+    // Apply sparring rounds
+    if (sparringRounds.length > 0) {
+      const newRounds: DraftRound[] = sparringRounds.map((round) => {
+        const submissionsFor: RoundSubmission[] = round.submissionsFor
+          .filter((s) => s.techniqueMatch)
+          .map((s) => ({
+            id: createId(),
+            techniqueId: s.techniqueMatch!.item.id,
+            positionId: null,
+          }));
+
+        const submissionsAgainst: RoundSubmission[] = round.submissionsAgainst
+          .filter((s) => s.techniqueMatch)
+          .map((s) => ({
+            id: createId(),
+            techniqueId: s.techniqueMatch!.item.id,
+            positionId: null,
+          }));
+
+        // Try to parse belt
+        let partnerBelt: BeltLevel | null = null;
+        const beltStr = round.partnerBelt.toLowerCase();
+        if (beltStr.includes("white")) partnerBelt = "white";
+        else if (beltStr.includes("blue")) partnerBelt = "blue";
+        else if (beltStr.includes("purple")) partnerBelt = "purple";
+        else if (beltStr.includes("brown")) partnerBelt = "brown";
+        else if (beltStr.includes("black")) partnerBelt = "black";
+
+        return {
+          id: createId(),
+          partnerName: round.partnerName,
+          partnerBelt,
+          submissionsFor,
+          submissionsAgainst,
+          submissionsForCount: Math.max(submissionsFor.length, round.submissionsFor.length),
+          submissionsAgainstCount: Math.max(submissionsAgainst.length, round.submissionsAgainst.length),
+          dominantPositions: [],
+          stuckPositions: [],
+          notes: round.notes,
+          notesExpanded: Boolean(round.notes),
+        };
+      });
+
+      setRoundDrafts(newRounds);
+    }
+  }
+
+  function applyExtraction() {
+    if (!matchedExtraction) {
+      return;
+    }
+    applyExtractionData(matchedExtraction);
+    setMatchedExtraction(null);
+  }
+
+  function dismissExtraction() {
+    setMatchedExtraction(null);
+    setRawExtraction(null);
+  }
+
+  function handleCreateUnmatched(item: UnmatchedItem) {
+    setCreateUnmatchedItem(item);
+  }
+
+  function handleUnmatchedCreated() {
+    // After creating an item, re-match the extraction to update the UI
+    if (matchedExtraction && audioResult) {
+      supabase.auth.getSession().then(({ data }) => {
+        const token = data.session?.access_token;
+        if (token) {
+          fetchAndMatchExtraction(audioResult.extractionId, token);
+        }
+      });
+    }
+    setCreateUnmatchedItem(null);
+  }
+
   function openCustomSubmission(roundId: string, side: "for" | "against") {
     setCustomSubmissionTarget({ roundId, side });
     setCustomSubmissionName("");
@@ -750,6 +1029,79 @@ export default function LogSessionPage() {
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        <section className="grid gap-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">Voice transcript (optional)</h2>
+            {audioStatus === "uploading" ? (
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
+                Uploading...
+              </span>
+            ) : null}
+          </div>
+          <p className="text-sm text-zinc-600">
+            Upload a recording to generate a transcript and draft session summary.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <input
+              type="file"
+              accept="audio/*"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                setAudioFile(file);
+                setAudioStatus("idle");
+                setAudioMessage("");
+                setAudioResult(null);
+              }}
+              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleAudioUpload}
+              disabled={!audioFile || audioStatus === "uploading"}
+              className="rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400 disabled:hover:bg-transparent"
+            >
+              Upload audio
+            </button>
+          </div>
+          {audioMessage ? (
+            <p
+              className={`text-sm ${
+                audioStatus === "error" ? "text-red-600" : "text-emerald-600"
+              }`}
+            >
+              {audioMessage}
+            </p>
+          ) : null}
+          {audioResult ? (
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-zinc-500">
+                Transcript ID: {audioResult.transcriptId} • Extraction ID:{" "}
+                {audioResult.extractionId}
+              </p>
+              {(rawExtraction || matchedExtraction) && (
+                <button
+                  type="button"
+                  onClick={() => setShowExtractionDebug(true)}
+                  className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100"
+                >
+                  Debug
+                </button>
+              )}
+            </div>
+          ) : null}
+          {extractionLoading ? (
+            <p className="text-sm text-amber-600">Loading extraction...</p>
+          ) : null}
+          {matchedExtraction ? (
+            <ExtractionReviewPanel
+              extraction={matchedExtraction}
+              onApply={applyExtraction}
+              onDismiss={dismissExtraction}
+              onCreateUnmatched={handleCreateUnmatched}
+            />
+          ) : null}
+        </section>
+
         <section className="grid gap-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold">Session details</h2>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -1594,6 +1946,161 @@ export default function LogSessionPage() {
               className="w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
             >
               Done
+            </button>
+          </div>
+        </Modal>
+
+        <Modal
+          open={Boolean(createUnmatchedItem)}
+          onClose={() => setCreateUnmatchedItem(null)}
+          title={
+            createUnmatchedItem?.type === "position"
+              ? "Create custom position"
+              : "Create custom technique"
+          }
+        >
+          {createUnmatchedItem?.type === "position" ? (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-600">
+                Create a custom position for &quot;{createUnmatchedItem.name}&quot;
+              </p>
+              <label className="space-y-2 text-sm font-medium text-zinc-700">
+                Name
+                <input
+                  defaultValue={createUnmatchedItem.name}
+                  id="unmatched-position-name"
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-zinc-700">
+                Parent position (optional)
+                <select
+                  id="unmatched-position-parent"
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                  defaultValue=""
+                >
+                  <option value="">None (root position)</option>
+                  {index.positionsInTreeOrder.map((position) => (
+                    <option key={position.id} value={position.id}>
+                      {index.getFullPath(position.id)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateUnmatchedItem(null)}
+                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nameInput = document.getElementById("unmatched-position-name") as HTMLInputElement;
+                    const parentSelect = document.getElementById("unmatched-position-parent") as HTMLSelectElement;
+                    const name = nameInput?.value.trim();
+                    const parentId = parentSelect?.value || null;
+                    if (name) {
+                      addCustomPosition({ name, parentId, perspective: "neutral" });
+                      handleUnmatchedCreated();
+                    }
+                  }}
+                  className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Create position
+                </button>
+              </div>
+            </div>
+          ) : createUnmatchedItem?.type === "technique" ? (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-600">
+                Create a custom technique for &quot;{createUnmatchedItem.name}&quot;
+                {createUnmatchedItem.context?.positionName && (
+                  <> from {createUnmatchedItem.context.positionName}</>
+                )}
+              </p>
+              <label className="space-y-2 text-sm font-medium text-zinc-700">
+                Name
+                <input
+                  defaultValue={createUnmatchedItem.name}
+                  id="unmatched-technique-name"
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-zinc-700">
+                Starting position
+                <select
+                  id="unmatched-technique-position"
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                  defaultValue={createUnmatchedItem.context?.positionId ?? ""}
+                >
+                  <option value="">Select position</option>
+                  {index.positionsInTreeOrder.map((position) => (
+                    <option key={position.id} value={position.id}>
+                      {index.getFullPath(position.id)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateUnmatchedItem(null)}
+                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nameInput = document.getElementById("unmatched-technique-name") as HTMLInputElement;
+                    const positionSelect = document.getElementById("unmatched-technique-position") as HTMLSelectElement;
+                    const name = nameInput?.value.trim();
+                    const positionFromId = positionSelect?.value;
+                    if (name && positionFromId) {
+                      addCustomTechnique({ name, category: "transition", positionFromId, positionToId: null });
+                      handleUnmatchedCreated();
+                    }
+                  }}
+                  className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Create technique
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </Modal>
+
+        <Modal
+          open={showExtractionDebug}
+          onClose={() => setShowExtractionDebug(false)}
+          title="Extraction Debug"
+        >
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Raw Extraction Payload
+              </p>
+              <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
+                {rawExtraction ? JSON.stringify(rawExtraction, null, 2) : "No extraction data"}
+              </pre>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Matched Extraction
+              </p>
+              <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
+                {matchedExtraction ? JSON.stringify(matchedExtraction, null, 2) : "No matched data"}
+              </pre>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowExtractionDebug(false)}
+              className="w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Close
             </button>
           </div>
         </Modal>

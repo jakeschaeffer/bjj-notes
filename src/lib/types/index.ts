@@ -24,3 +24,11 @@ export type {
   UserTechniqueNote,
   UserPositionNote,
 } from "./taxonomy";
+
+export type {
+  TranscriptStatus,
+  TranscriptSource,
+  Transcript,
+  ExtractionStatus,
+  TranscriptExtraction,
+} from "./transcript";
