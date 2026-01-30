@@ -6,8 +6,6 @@ import { buildExtractionRequest } from "@/lib/extraction/openai";
 
 export const runtime = "nodejs";
 
-const AUDIO_BUCKET = "session-audio";
-const TRANSCRIBE_MODEL = "whisper-1";
 const EXTRACT_MODEL = "gpt-4o-mini";
 
 type ExtractionPayload = {
@@ -44,29 +42,6 @@ function getBearerToken(request: Request) {
     return null;
   }
   return authHeader.slice("Bearer ".length).trim();
-}
-
-async function transcribeAudio(file: File, apiKey: string) {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("model", TRANSCRIBE_MODEL);
-  form.append("response_format", "json");
-
-  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: form,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Transcription failed: ${errorText}`);
-  }
-
-  const data = (await response.json()) as { text?: string };
-  return data.text?.trim() ?? "";
 }
 
 async function extractSession(rawText: string, apiKey: string) {
@@ -123,59 +98,33 @@ export async function POST(request: Request) {
       error instanceof Error ? error.message : "Supabase admin config missing.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
   if (authError || !authData.user) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
-  const formData = await request.formData();
-  const file = formData.get("file");
-  if (!file || typeof file !== "object" || !("arrayBuffer" in file)) {
-    return NextResponse.json({ error: "Missing audio file" }, { status: 400 });
-  }
+  const body = (await request.json().catch(() => null)) as {
+    text?: string;
+  } | null;
 
-  const sourceValue = formData.get("source");
-  const source =
-    sourceValue === "voice_recording" ? "voice_recording" : "audio_upload";
-  const sessionIdValue = formData.get("sessionId");
-  const sessionId =
-    typeof sessionIdValue === "string" && sessionIdValue.trim().length > 0
-      ? sessionIdValue.trim()
-      : null;
+  const rawText = body?.text?.trim() ?? "";
+  if (!rawText) {
+    return NextResponse.json({ error: "Missing transcript text" }, { status: 400 });
+  }
 
   const transcriptId = randomUUID();
-  const audioFile = file as File;
-  const fileName = audioFile.name || `${transcriptId}.webm`;
-  const extension = fileName.includes(".")
-    ? fileName.split(".").pop()
-    : "webm";
-  const storagePath = `${authData.user.id}/${transcriptId}.${extension}`;
-
-  const audioBuffer = Buffer.from(await audioFile.arrayBuffer());
-  const { error: storageError } = await supabase.storage
-    .from(AUDIO_BUCKET)
-    .upload(storagePath, audioBuffer, {
-      contentType: audioFile.type || "application/octet-stream",
-      upsert: false,
-    });
-
-  if (storageError) {
-    return NextResponse.json(
-      { error: `Failed to store audio: ${storageError.message}` },
-      { status: 500 },
-    );
-  }
-
   const createdAt = new Date().toISOString();
+
   const { error: insertError } = await supabase.from("transcripts").insert({
     id: transcriptId,
     user_id: authData.user.id,
-    session_id: sessionId,
-    source,
-    audio_url: storagePath,
-    raw_text: "",
+    session_id: null,
+    source: "audio_upload",
+    audio_url: null,
+    raw_text: rawText,
     status: "processing",
-    model: TRANSCRIBE_MODEL,
+    model: "text-input",
     created_at: createdAt,
   });
 
@@ -187,7 +136,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const rawText = await transcribeAudio(audioFile, openAiApiKey);
     const { payload, confidence } = await extractSession(rawText, openAiApiKey);
     const processedAt = new Date().toISOString();
 

@@ -13,16 +13,22 @@ export type MatchResult<T> = {
 export type PositionMatch = MatchResult<Position> | null;
 export type TechniqueMatch = MatchResult<Technique> | null;
 
-const POSITION_MATCH_THRESHOLD = 0.4;
-const TECHNIQUE_MATCH_THRESHOLD = 0.4;
+const POSITION_MATCH_THRESHOLD = 0.5;
+const TECHNIQUE_MATCH_THRESHOLD = 0.5;
 
 export function createPositionMatcher(index: TaxonomyIndex) {
-  const positions = index.positions;
+  const positions = index.positions.map((position) => ({
+    position,
+    name: position.name,
+    slug: position.slug,
+    searchLabel: `${position.name} ${index.getFullPath(position.id)}`.toLowerCase(),
+  }));
 
   const fuse = new Fuse(positions, {
     keys: [
       { name: "name", weight: 1 },
       { name: "slug", weight: 0.5 },
+      { name: "searchLabel", weight: 0.7 },
     ],
     threshold: POSITION_MATCH_THRESHOLD,
     includeScore: true,
@@ -44,19 +50,25 @@ export function createPositionMatcher(index: TaxonomyIndex) {
     }
 
     return {
-      item: best.item,
+      item: best.item.position,
       score: 1 - best.score,
     };
   };
 }
 
 export function createTechniqueMatcher(index: TaxonomyIndex) {
-  const techniques = index.techniques;
+  const techniques = index.techniques.map((technique) => ({
+    technique,
+    name: technique.name,
+    aliases: technique.aliases ?? [],
+    searchLabel: `${technique.name} ${(technique.aliases ?? []).join(" ")} ${index.getFullPath(technique.positionFromId)}`.toLowerCase(),
+  }));
 
   const fuse = new Fuse(techniques, {
     keys: [
       { name: "name", weight: 1 },
       { name: "aliases", weight: 0.8 },
+      { name: "searchLabel", weight: 0.6 },
     ],
     threshold: TECHNIQUE_MATCH_THRESHOLD,
     includeScore: true,
@@ -78,11 +90,14 @@ export function createTechniqueMatcher(index: TaxonomyIndex) {
     // If we have a position, prefer techniques from that position
     if (positionId) {
       const positionMatch = results.find(
-        (r) => r.item.positionFromId === positionId && r.score !== undefined && r.score <= TECHNIQUE_MATCH_THRESHOLD,
+        (r) =>
+          r.item.technique.positionFromId === positionId &&
+          r.score !== undefined &&
+          r.score <= TECHNIQUE_MATCH_THRESHOLD,
       );
       if (positionMatch && positionMatch.score !== undefined) {
         return {
-          item: positionMatch.item,
+          item: positionMatch.item.technique,
           score: 1 - positionMatch.score,
         };
       }
@@ -94,7 +109,7 @@ export function createTechniqueMatcher(index: TaxonomyIndex) {
     }
 
     return {
-      item: best.item,
+      item: best.item.technique,
       score: 1 - best.score,
     };
   };

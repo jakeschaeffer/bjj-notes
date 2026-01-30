@@ -249,6 +249,16 @@ export default function LogSessionPage() {
     transcriptId: string;
     extractionId: string;
   } | null>(null);
+  const [transcriptText, setTranscriptText] = useState("");
+  const [transcriptStatus, setTranscriptStatus] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
+  const [transcriptMessage, setTranscriptMessage] = useState("");
+  const [debugTranscriptInput, setDebugTranscriptInput] = useState("");
+  const [debugStatus, setDebugStatus] = useState<
+    "idle" | "running" | "success" | "error"
+  >("idle");
+  const [debugMessage, setDebugMessage] = useState("");
   const [matchedExtraction, setMatchedExtraction] = useState<MatchedExtraction | null>(null);
   const [rawExtraction, setRawExtraction] = useState<ExtractionPayload | null>(null);
   const [extractionLoading, setExtractionLoading] = useState(false);
@@ -637,10 +647,121 @@ export default function LogSessionPage() {
 
       // Fetch and match the extraction
       fetchAndMatchExtraction(result.extractionId, token);
+      fetchTranscript(result.id, token);
     } catch (error) {
       setAudioStatus("error");
       setAudioMessage(
         error instanceof Error ? error.message : "Upload failed. Try again.",
+      );
+    }
+  }
+
+  async function fetchTranscript(transcriptId: string, token: string) {
+    setTranscriptStatus("loading");
+    setTranscriptMessage("");
+    try {
+      const response = await fetch(`/api/transcripts/${transcriptId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        setTranscriptStatus("error");
+        setTranscriptMessage("Unable to load transcript text.");
+        return;
+      }
+
+      const data = (await response.json()) as { rawText?: string };
+      setTranscriptText(data.rawText ?? "");
+      setTranscriptStatus("idle");
+    } catch (error) {
+      setTranscriptStatus("error");
+      setTranscriptMessage(
+        error instanceof Error ? error.message : "Unable to load transcript text.",
+      );
+    }
+  }
+
+  async function handleTranscriptTextExtraction() {
+    const text = debugTranscriptInput.trim();
+    if (!text) {
+      setDebugStatus("error");
+      setDebugMessage("Paste a transcript to test extraction.");
+      return;
+    }
+
+    if (!user) {
+      setDebugStatus("error");
+      setDebugMessage("You need to be signed in to run extraction.");
+      return;
+    }
+
+    setDebugStatus("running");
+    setDebugMessage("");
+    setRawExtraction(null);
+    setMatchedExtraction(null);
+    setTranscriptText("");
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      setDebugStatus("error");
+      setDebugMessage("Could not read your auth session. Try again.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/transcripts/text", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      const contentType = response.headers.get("content-type") ?? "";
+      let result:
+        | { id: string; extractionId: string; status?: string }
+        | { error: string }
+        | null = null;
+
+      if (contentType.includes("application/json")) {
+        result = (await response.json()) as
+          | { id: string; extractionId: string; status?: string }
+          | { error: string };
+      } else {
+        const responseText = await response.text();
+        result = responseText ? { error: responseText } : null;
+      }
+
+      if (!response.ok || (result && "error" in result)) {
+        const rawMessage =
+          result && "error" in result ? result.error : "Extraction failed.";
+        setDebugStatus("error");
+        setDebugMessage(rawMessage);
+        return;
+      }
+
+      if (!result || !("id" in result) || !("extractionId" in result)) {
+        setDebugStatus("error");
+        setDebugMessage("Extraction failed.");
+        return;
+      }
+
+      setDebugStatus("success");
+      setDebugMessage("Draft extraction created.");
+      setAudioResult({
+        transcriptId: result.id,
+        extractionId: result.extractionId,
+      });
+      fetchAndMatchExtraction(result.extractionId, token);
+      fetchTranscript(result.id, token);
+    } catch (error) {
+      setDebugStatus("error");
+      setDebugMessage(
+        error instanceof Error ? error.message : "Extraction failed.",
       );
     }
   }
@@ -1051,6 +1172,9 @@ export default function LogSessionPage() {
                 setAudioStatus("idle");
                 setAudioMessage("");
                 setAudioResult(null);
+                setTranscriptText("");
+                setTranscriptStatus("idle");
+                setTranscriptMessage("");
               }}
               className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
             />
@@ -1061,6 +1185,13 @@ export default function LogSessionPage() {
               className="rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400 disabled:hover:bg-transparent"
             >
               Upload audio
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowExtractionDebug(true)}
+              className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
+            >
+              Upload transcript
             </button>
           </div>
           {audioMessage ? (
@@ -2079,6 +2210,51 @@ export default function LogSessionPage() {
           title="Extraction Debug"
         >
           <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Test from Transcript Text
+              </p>
+              <textarea
+                value={debugTranscriptInput}
+                onChange={(event) => setDebugTranscriptInput(event.target.value)}
+                rows={6}
+                className="mt-2 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                placeholder="Paste a transcript to run extraction without audio."
+              />
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={handleTranscriptTextExtraction}
+                  disabled={debugStatus === "running"}
+                  className="rounded-full bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-200"
+                >
+                  {debugStatus === "running" ? "Running..." : "Run extraction"}
+                </button>
+                {debugMessage ? (
+                  <span
+                    className={`text-xs ${
+                      debugStatus === "error" ? "text-red-600" : "text-emerald-600"
+                    }`}
+                  >
+                    {debugMessage}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Transcript Text
+              </p>
+              <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
+                {transcriptText ||
+                  (transcriptStatus === "loading"
+                    ? "Loading transcript..."
+                    : "No transcript loaded")}
+              </pre>
+              {transcriptMessage ? (
+                <p className="mt-2 text-xs text-red-600">{transcriptMessage}</p>
+              ) : null}
+            </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
                 Raw Extraction Payload
