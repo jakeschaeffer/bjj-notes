@@ -10,6 +10,7 @@ export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -18,13 +19,30 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signUp({
+    const response = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, code }),
+    });
+
+    const contentType = response.headers.get("content-type") ?? "";
+    const payload = contentType.includes("application/json")
+      ? await response.json()
+      : { error: "Sign up failed." };
+
+    if (!response.ok || payload?.error) {
+      setError(payload?.error ?? "Sign up failed.");
+      setLoading(false);
+      return;
+    }
+
+    const { error: loginError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (authError) {
-      setError(authError.message);
+    if (loginError) {
+      setError(loginError.message);
       setLoading(false);
       return;
     }
@@ -62,6 +80,17 @@ export default function SignupPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            required
+          />
+        </label>
+        <label className="space-y-2 text-sm font-medium text-zinc-700">
+          Signup code
+          <input
+            type="text"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            placeholder="Enter invite code"
             required
           />
         </label>

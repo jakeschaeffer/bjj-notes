@@ -41,6 +41,7 @@ Set these in `.env.local` (not committed):
 - `SUPABASE_SECRET_KEY` (server-only; preferred)
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only; legacy fallback)
 - `OPENAI_API_KEY` (server-only)
+- `INVITE_ADMIN_EMAILS` (server-only; optional comma-separated allowlist)
 
 ## Voice transcript tables
 
@@ -82,6 +83,57 @@ create policy "Users can manage own transcripts" on transcripts
 
 create policy "Users can manage own transcript extractions" on transcript_extractions
   for all using (auth.uid() = user_id);
+```
+
+## Invite-only signups
+
+Disable public signups in the Supabase dashboard:
+Authentication → Settings → "Disable signups" = ON
+
+Run the SQL below to enable invite codes:
+
+```sql
+create extension if not exists pgcrypto;
+
+create table if not exists signup_codes (
+  id uuid primary key default gen_random_uuid(),
+  code_plain text,
+  code_hash text unique not null,
+  max_uses integer not null default 1,
+  uses integer not null default 0,
+  expires_at timestamptz,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table signup_codes enable row level security;
+
+create policy "No client access to signup codes" on signup_codes
+  for all using (false);
+
+alter table signup_codes add column if not exists code_plain text;
+
+create or replace function consume_signup_code(p_code_hash text)
+returns boolean
+language plpgsql
+as $$
+declare
+  updated integer;
+begin
+  update signup_codes
+  set uses = uses + 1
+  where code_hash = p_code_hash
+    and is_active = true
+    and (expires_at is null or expires_at > now())
+    and (uses < max_uses);
+  get diagnostics updated = row_count;
+  return updated = 1;
+end;
+$$;
+
+-- Example insert
+insert into signup_codes (code_hash)
+values (encode(digest('MY-PRIVATE-CODE', 'sha256'), 'hex'));
 ```
 
 ## Storage bucket
