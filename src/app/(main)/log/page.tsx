@@ -679,19 +679,25 @@ export default function LogSessionPage() {
       // Set up audio analyzer for visualizer
       const audioContext = new AudioContext();
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 32;
+      analyser.fftSize = 256;
       const source = audioContext.createMediaStreamSource(stream);
       source.connect(analyser);
       audioContextRef.current = audioContext;
       analyserRef.current = analyser;
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const dataArray = new Uint8Array(analyser.fftSize);
       function updateLevels() {
         if (!analyserRef.current) return;
-        analyserRef.current.getByteFrequencyData(dataArray);
+        analyserRef.current.getByteTimeDomainData(dataArray);
+        // Calculate amplitude for 5 segments of the waveform
+        const segmentSize = Math.floor(dataArray.length / 5);
         const levels = [0, 1, 2, 3, 4].map((i) => {
-          const idx = Math.floor((i / 5) * dataArray.length);
-          return dataArray[idx] / 255;
+          let sum = 0;
+          for (let j = 0; j < segmentSize; j++) {
+            const val = dataArray[i * segmentSize + j] - 128;
+            sum += Math.abs(val);
+          }
+          return Math.min(1, (sum / segmentSize / 128) * 4);
         });
         setAudioLevels(levels);
         animationFrameRef.current = requestAnimationFrame(updateLevels);
@@ -1266,33 +1272,6 @@ export default function LogSessionPage() {
             Upload a recording to generate a transcript and draft session summary.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <input
-              type="file"
-              accept="audio/*"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                setAudioFile(file);
-                setAudioStatus("idle");
-                setAudioMessage("");
-                setAudioResult(null);
-                if (recordingUrl) {
-                  URL.revokeObjectURL(recordingUrl);
-                  setRecordingUrl(null);
-                }
-                setTranscriptText("");
-                setTranscriptStatus("idle");
-                setTranscriptMessage("");
-              }}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-            />
-            <button
-              type="button"
-              onClick={handleAudioUpload}
-              disabled={!audioFile || audioStatus === "uploading"}
-              className="rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400 disabled:hover:bg-transparent"
-            >
-              Upload audio
-            </button>
             <button
               type="button"
               onClick={isRecording ? stopRecording : startRecording}
@@ -1324,9 +1303,16 @@ export default function LogSessionPage() {
             </button>
           </div>
           {recordingUrl ? (
-            <div className="flex items-center gap-3 text-xs text-zinc-500">
+            <div className="flex items-center gap-3">
               <audio controls src={recordingUrl} className="h-8" />
-              <span>Recording ready to upload.</span>
+              <button
+                type="button"
+                onClick={handleAudioUpload}
+                disabled={!audioFile || audioStatus === "uploading"}
+                className="rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400 disabled:hover:bg-transparent"
+              >
+                Upload audio
+              </button>
             </div>
           ) : null}
           {audioMessage ? (
