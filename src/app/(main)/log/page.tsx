@@ -11,7 +11,7 @@ import {
   ExtractionReviewPanel,
   type UnmatchedItem,
 } from "@/components/extraction/extraction-review-panel";
-import { Modal } from "@/components/ui/modal";
+import { Button, Card, FormField, Modal, Tag } from "@/components/ui";
 import { supabase } from "@/db/supabase/client";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
 import { useAuth } from "@/hooks/use-auth";
@@ -1259,30 +1259,23 @@ export default function LogSessionPage() {
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <section className="grid gap-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <Card as="section" className="grid gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Voice transcript (optional)</h2>
             {audioStatus === "uploading" ? (
-              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-                Uploading...
-              </span>
+              <Tag variant="status">Uploading...</Tag>
             ) : null}
           </div>
           <p className="text-sm text-zinc-600">
             Upload a recording to generate a transcript and draft session summary.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <button
-              type="button"
+            <Button
+              variant={isRecording ? "danger" : "secondary"}
               onClick={isRecording ? stopRecording : startRecording}
-              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                isRecording
-                  ? "border-red-200 text-red-600 hover:bg-red-50"
-                  : "border-zinc-200 text-zinc-600 hover:bg-zinc-100"
-              }`}
             >
               {isRecording ? "Stop recording" : "Record audio"}
-            </button>
+            </Button>
             {isRecording && (
               <div className="flex items-center gap-1 px-2">
                 {audioLevels.map((level, i) => (
@@ -1294,25 +1287,20 @@ export default function LogSessionPage() {
                 ))}
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setShowExtractionDebug(true)}
-              className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
-            >
+            <Button onClick={() => setShowExtractionDebug(true)}>
               Upload transcript
-            </button>
+            </Button>
           </div>
           {recordingUrl ? (
             <div className="flex items-center gap-3">
               <audio controls src={recordingUrl} className="h-8" />
-              <button
-                type="button"
+              <Button
+                variant="accent"
                 onClick={handleAudioUpload}
                 disabled={!audioFile || audioStatus === "uploading"}
-                className="rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-400 disabled:hover:bg-transparent"
               >
                 Upload audio
-              </button>
+              </Button>
             </div>
           ) : null}
           {audioMessage ? (
@@ -1331,13 +1319,12 @@ export default function LogSessionPage() {
                 {audioResult.extractionId}
               </p>
               {(rawExtraction || matchedExtraction) && (
-                <button
-                  type="button"
+                <Button
+                  size="sm"
                   onClick={() => setShowExtractionDebug(true)}
-                  className="rounded-full border border-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-500 hover:bg-zinc-100"
                 >
                   Debug
-                </button>
+                </Button>
               )}
             </div>
           ) : null}
@@ -1352,79 +1339,65 @@ export default function LogSessionPage() {
               onCreateUnmatched={handleCreateUnmatched}
             />
           ) : null}
-        </section>
+        </Card>
 
-        <section className="grid gap-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <Card as="section" className="grid gap-4">
           <h2 className="text-lg font-semibold">Session details</h2>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
-              Date
-              <input
-                type="date"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                required
-              />
-            </label>
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
-              Session type
-              <select
-                value={sessionType}
-                onChange={(event) =>
-                  setSessionType(event.target.value as typeof sessionTypes[number])
-                }
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-              >
-                {sessionTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type.replace(/-/g, " ")}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
-              Gi or NoGi
-              <select
-                value={giOrNogi}
-                onChange={(event) =>
-                  setGiOrNogi(event.target.value as "gi" | "nogi" | "both")
-                }
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-              >
-                <option value="gi">Gi</option>
-                <option value="nogi">NoGi</option>
-                <option value="both">Both</option>
-              </select>
-            </label>
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
-              Duration (minutes)
-              <input
-                type="number"
-                min={0}
-                value={durationMinutes}
-                onChange={(event) =>
-                  setDurationMinutes(
-                    event.target.value === "" ? "" : Number(event.target.value),
-                  )
-                }
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="Optional"
-              />
-            </label>
+            <FormField
+              label="Date"
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+              required
+            />
+            <FormField
+              as="select"
+              label="Session type"
+              value={sessionType}
+              onChange={(event) =>
+                setSessionType(event.target.value as typeof sessionTypes[number])
+              }
+            >
+              {sessionTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type.replace(/-/g, " ")}
+                </option>
+              ))}
+            </FormField>
+            <FormField
+              as="select"
+              label="Gi or NoGi"
+              value={giOrNogi}
+              onChange={(event) =>
+                setGiOrNogi(event.target.value as "gi" | "nogi" | "both")
+              }
+            >
+              <option value="gi">Gi</option>
+              <option value="nogi">NoGi</option>
+              <option value="both">Both</option>
+            </FormField>
+            <FormField
+              label="Duration (minutes)"
+              type="number"
+              min={0}
+              value={durationMinutes}
+              onChange={(event) =>
+                setDurationMinutes(
+                  event.target.value === "" ? "" : Number(event.target.value),
+                )
+              }
+              placeholder="Optional"
+            />
           </div>
-        </section>
+        </Card>
 
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Techniques drilled</h2>
-            <button
-              type="button"
-              onClick={addTechnique}
-              className="rounded-full border border-zinc-200 px-4 py-1.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
-            >
+            <Button onClick={addTechnique}>
               Add another technique
-            </button>
+            </Button>
           </div>
           <p className="text-sm text-zinc-600">
             Optional. Leave blank if you only want to log sparring rounds.
@@ -1437,22 +1410,20 @@ export default function LogSessionPage() {
             const suggestions = buildTagSuggestions(technique, tagSuggestions);
 
             return (
-              <div
-                key={draft.id}
-                className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm"
-              >
+              <Card key={draft.id} variant="nested">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h3 className="text-sm font-semibold text-zinc-700">
                     Technique {indexValue + 1}
                   </h3>
                   {techniqueDrafts.length > 1 ? (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => removeTechnique(draft.id)}
-                      className="text-xs font-semibold text-zinc-500 transition hover:text-red-500"
+                      className="hover:text-red-500"
                     >
                       Remove
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -1540,21 +1511,17 @@ export default function LogSessionPage() {
                     </div>
                   </div>
                 ) : null}
-              </div>
+              </Card>
             );
           })}
         </section>
 
-        <section className="space-y-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <Card as="section" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Sparring rounds</h2>
-            <button
-              type="button"
-              onClick={addRound}
-              className="rounded-full border border-zinc-200 px-4 py-1.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
-            >
+            <Button onClick={addRound}>
               Add round
-            </button>
+            </Button>
           </div>
 
           {roundDrafts.length === 0 ? (
@@ -1849,39 +1816,31 @@ export default function LogSessionPage() {
               })}
             </div>
           )}
-        </section>
+        </Card>
 
-        <section className="grid gap-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <Card as="section" className="grid gap-4">
           <h2 className="text-lg font-semibold">Notes</h2>
-          <label className="space-y-2 text-sm font-medium text-zinc-700">
-            Session notes
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              className="min-h-[90px] w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-            />
-          </label>
+          <FormField
+            as="textarea"
+            label="Session notes"
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+          />
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
-              Insights (comma separated)
-              <input
-                value={insights}
-                onChange={(event) => setInsights(event.target.value)}
-                placeholder="posture, grip breaking"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
-              Goals for next session
-              <input
-                value={goalsForNext}
-                onChange={(event) => setGoalsForNext(event.target.value)}
-                placeholder="play more open guard"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-              />
-            </label>
+            <FormField
+              label="Insights (comma separated)"
+              value={insights}
+              onChange={(event) => setInsights(event.target.value)}
+              placeholder="posture, grip breaking"
+            />
+            <FormField
+              label="Goals for next session"
+              value={goalsForNext}
+              onChange={(event) => setGoalsForNext(event.target.value)}
+              placeholder="play more open guard"
+            />
           </div>
-        </section>
+        </Card>
 
         <Modal
           open={Boolean(beltPickerRoundId)}
@@ -2407,12 +2366,9 @@ export default function LogSessionPage() {
         ) : null}
 
         <div className="flex flex-wrap items-center gap-4">
-          <button
-            type="submit"
-            className="rounded-full bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
-          >
+          <Button variant="primary" size="lg" type="submit">
             Save session
-          </button>
+          </Button>
           {saved ? (
             <span className="text-sm font-semibold text-amber-600">
               Session saved.
