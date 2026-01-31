@@ -254,6 +254,10 @@ export default function LogSessionPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordingChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const [audioLevels, setAudioLevels] = useState<number[]>([0, 0, 0, 0, 0]);
   const [transcriptText, setTranscriptText] = useState("");
   const [transcriptStatus, setTranscriptStatus] = useState<
     "idle" | "loading" | "error"
@@ -672,6 +676,28 @@ export default function LogSessionPage() {
       const recorder = new MediaRecorder(stream);
       recordingChunksRef.current = [];
 
+      // Set up audio analyzer for visualizer
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 32;
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      function updateLevels() {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const levels = [0, 1, 2, 3, 4].map((i) => {
+          const idx = Math.floor((i / 5) * dataArray.length);
+          return dataArray[idx] / 255;
+        });
+        setAudioLevels(levels);
+        animationFrameRef.current = requestAnimationFrame(updateLevels);
+      }
+      updateLevels();
+
       recorder.addEventListener("dataavailable", (event) => {
         if (event.data.size > 0) {
           recordingChunksRef.current.push(event.data);
@@ -719,6 +745,18 @@ export default function LogSessionPage() {
     mediaRecorderRef.current.stop();
     mediaRecorderRef.current = null;
     setIsRecording(false);
+
+    // Clean up audio analyzer
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setAudioLevels([0, 0, 0, 0, 0]);
   }
 
   async function fetchTranscript(transcriptId: string, token: string) {
@@ -1266,6 +1304,17 @@ export default function LogSessionPage() {
             >
               {isRecording ? "Stop recording" : "Record audio"}
             </button>
+            {isRecording && (
+              <div className="flex items-center gap-1 px-2">
+                {audioLevels.map((level, i) => (
+                  <div
+                    key={i}
+                    className="w-1 rounded-full bg-red-400 transition-all duration-75"
+                    style={{ height: `${8 + level * 16}px` }}
+                  />
+                ))}
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setShowExtractionDebug(true)}
