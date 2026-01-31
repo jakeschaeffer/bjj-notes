@@ -57,6 +57,16 @@ export interface PartnerName {
   lastUsedAt: Timestamp;
 }
 
+export interface Partner {
+  id: ID;
+  name: string;
+  belt: BeltLevel | null;
+  notes: string;
+  roundCount: number;
+  lastRolledAt: Timestamp | null;
+  createdAt: Timestamp;
+}
+
 export interface Session {
   id: ID;
   userId: ID;
