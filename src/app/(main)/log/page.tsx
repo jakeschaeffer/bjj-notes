@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Fuse from "fuse.js";
 
@@ -249,6 +249,11 @@ export default function LogSessionPage() {
     transcriptId: string;
     extractionId: string;
   } | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordingChunksRef = useRef<Blob[]>([]);
   const [transcriptText, setTranscriptText] = useState("");
   const [transcriptStatus, setTranscriptStatus] = useState<
     "idle" | "loading" | "error"
@@ -654,6 +659,66 @@ export default function LogSessionPage() {
         error instanceof Error ? error.message : "Upload failed. Try again.",
       );
     }
+  }
+
+  async function startRecording() {
+    if (isRecording) {
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const recorder = new MediaRecorder(stream);
+      recordingChunksRef.current = [];
+
+      recorder.addEventListener("dataavailable", (event) => {
+        if (event.data.size > 0) {
+          recordingChunksRef.current.push(event.data);
+        }
+      });
+
+      recorder.addEventListener("stop", () => {
+        const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType });
+        recordingChunksRef.current = [];
+        const file = new File([blob], `recording-${Date.now()}.webm`, {
+          type: blob.type || "audio/webm",
+        });
+
+        if (recordingUrl) {
+          URL.revokeObjectURL(recordingUrl);
+        }
+
+        setRecordingUrl(URL.createObjectURL(blob));
+        setAudioFile(file);
+        setAudioStatus("idle");
+        setAudioMessage("");
+        setAudioResult(null);
+
+        if (mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+          mediaStreamRef.current = null;
+        }
+      });
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      setAudioStatus("error");
+      setAudioMessage(
+        error instanceof Error ? error.message : "Microphone access failed.",
+      );
+    }
+  }
+
+  function stopRecording() {
+    if (!mediaRecorderRef.current) {
+      return;
+    }
+    mediaRecorderRef.current.stop();
+    mediaRecorderRef.current = null;
+    setIsRecording(false);
   }
 
   async function fetchTranscript(transcriptId: string, token: string) {
@@ -1172,6 +1237,10 @@ export default function LogSessionPage() {
                 setAudioStatus("idle");
                 setAudioMessage("");
                 setAudioResult(null);
+                if (recordingUrl) {
+                  URL.revokeObjectURL(recordingUrl);
+                  setRecordingUrl(null);
+                }
                 setTranscriptText("");
                 setTranscriptStatus("idle");
                 setTranscriptMessage("");
@@ -1188,12 +1257,29 @@ export default function LogSessionPage() {
             </button>
             <button
               type="button"
+              onClick={isRecording ? stopRecording : startRecording}
+              className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                isRecording
+                  ? "border-red-200 text-red-600 hover:bg-red-50"
+                  : "border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              }`}
+            >
+              {isRecording ? "Stop recording" : "Record audio"}
+            </button>
+            <button
+              type="button"
               onClick={() => setShowExtractionDebug(true)}
               className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
             >
               Upload transcript
             </button>
           </div>
+          {recordingUrl ? (
+            <div className="flex items-center gap-3 text-xs text-zinc-500">
+              <audio controls src={recordingUrl} className="h-8" />
+              <span>Recording ready to upload.</span>
+            </div>
+          ) : null}
           {audioMessage ? (
             <p
               className={`text-sm ${
