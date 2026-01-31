@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Fuse from "fuse.js";
 
@@ -355,157 +355,179 @@ export default function LogSessionPage() {
     return [...submissionTechniques].sort((a, b) => a.name.localeCompare(b.name));
   }, [submissionTechniques]);
 
-  function updateTechnique(id: string, update: Partial<DraftTechnique>) {
-    setTechniqueDrafts((prev) =>
-      prev.map((technique) =>
-        technique.id === id ? { ...technique, ...update } : technique,
-      ),
-    );
-  }
+  const updateTechnique = useCallback(
+    (id: string, update: Partial<DraftTechnique>) => {
+      setTechniqueDrafts((prev) =>
+        prev.map((technique) =>
+          technique.id === id ? { ...technique, ...update } : technique,
+        ),
+      );
+    },
+    [],
+  );
 
-  function addTechnique() {
+  const addTechnique = useCallback(() => {
     setTechniqueDrafts((prev) => [...prev, createDraftTechnique()]);
-  }
+  }, []);
 
-  function removeTechnique(id: string) {
+  const removeTechnique = useCallback((id: string) => {
     setTechniqueDrafts((prev) => prev.filter((technique) => technique.id !== id));
-  }
+  }, []);
 
-  function updateRound(id: string, update: Partial<DraftRound>) {
-    setRoundDrafts((prev) =>
-      prev.map((round) => (round.id === id ? { ...round, ...update } : round)),
-    );
-  }
+  const updateRound = useCallback(
+    (id: string, update: Partial<DraftRound>) => {
+      setRoundDrafts((prev) =>
+        prev.map((round) => (round.id === id ? { ...round, ...update } : round)),
+      );
+    },
+    [],
+  );
 
-  function addRound() {
+  const addRound = useCallback(() => {
     setRoundDrafts((prev) => [...prev, createDraftRound()]);
-  }
+  }, []);
 
-  function removeRound(id: string) {
-    const round = roundDrafts.find((item) => item.id === id);
-    if (!round) {
-      return;
-    }
-
-    const hasData =
-      round.partnerName.trim() ||
-      round.partnerBelt ||
-      round.submissionsFor.length > 0 ||
-      round.submissionsAgainst.length > 0 ||
-      round.dominantPositions.length > 0 ||
-      round.stuckPositions.length > 0 ||
-      round.notes.trim();
-
-    if (hasData && !window.confirm("Remove this round?")) {
-      return;
-    }
-
-    setRoundDrafts((prev) => prev.filter((item) => item.id !== id));
-  }
-
-  function toggleRoundPosition(
-    roundId: string,
-    type: "dominant" | "stuck",
-    positionId: string,
-  ) {
-    setRoundDrafts((prev) =>
-      prev.map((round) => {
-        if (round.id !== roundId) {
-          return round;
-        }
-        const key = type === "dominant" ? "dominantPositions" : "stuckPositions";
-        const list = round[key];
-        const next = list.includes(positionId)
-          ? list.filter((item) => item !== positionId)
-          : [...list, positionId];
-        return {
-          ...round,
-          [key]: next,
-        };
-      }),
-    );
-  }
-
-  function openSubmissionPicker(roundId: string, side: "for" | "against") {
-    setSubmissionPicker({ roundId, side });
-    setSubmissionSearch("");
-  }
-
-  function incrementSubmissionCount(roundId: string, side: "for" | "against") {
-    setRoundDrafts((prev) =>
-      prev.map((round) => {
-        if (round.id !== roundId) {
-          return round;
-        }
-        const countKey =
-          side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
-        return {
-          ...round,
-          [countKey]: round[countKey] + 1,
-        };
-      }),
-    );
-  }
-
-  function decrementSubmissionCount(roundId: string, side: "for" | "against") {
-    setRoundDrafts((prev) =>
-      prev.map((round) => {
-        if (round.id !== roundId) {
-          return round;
-        }
-        const countKey =
-          side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
-        const listKey = side === "for" ? "submissionsFor" : "submissionsAgainst";
-        if (round[countKey] === 0) {
-          return round;
+  const removeRound = useCallback(
+    (id: string) => {
+      setRoundDrafts((prev) => {
+        const round = prev.find((item) => item.id === id);
+        if (!round) {
+          return prev;
         }
 
-        const nextCount = round[countKey] - 1;
-        if (nextCount < round[listKey].length) {
-          const message =
-            round[listKey].length === 1
-              ? "Clear the logged submission?"
-              : "Reduce the count and remove a submission detail?";
-          if (!window.confirm(message)) {
+        const hasData =
+          round.partnerName.trim() ||
+          round.partnerBelt ||
+          round.submissionsFor.length > 0 ||
+          round.submissionsAgainst.length > 0 ||
+          round.dominantPositions.length > 0 ||
+          round.stuckPositions.length > 0 ||
+          round.notes.trim();
+
+        if (hasData && !window.confirm("Remove this round?")) {
+          return prev;
+        }
+
+        return prev.filter((item) => item.id !== id);
+      });
+    },
+    [],
+  );
+
+  const toggleRoundPosition = useCallback(
+    (roundId: string, type: "dominant" | "stuck", positionId: string) => {
+      setRoundDrafts((prev) =>
+        prev.map((round) => {
+          if (round.id !== roundId) {
             return round;
           }
+          const key = type === "dominant" ? "dominantPositions" : "stuckPositions";
+          const list = round[key];
+          const next = list.includes(positionId)
+            ? list.filter((item) => item !== positionId)
+            : [...list, positionId];
+          return {
+            ...round,
+            [key]: next,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const openSubmissionPicker = useCallback(
+    (roundId: string, side: "for" | "against") => {
+      setSubmissionPicker({ roundId, side });
+      setSubmissionSearch("");
+    },
+    [],
+  );
+
+  const incrementSubmissionCount = useCallback(
+    (roundId: string, side: "for" | "against") => {
+      setRoundDrafts((prev) =>
+        prev.map((round) => {
+          if (round.id !== roundId) {
+            return round;
+          }
+          const countKey =
+            side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
+          return {
+            ...round,
+            [countKey]: round[countKey] + 1,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const decrementSubmissionCount = useCallback(
+    (roundId: string, side: "for" | "against") => {
+      setRoundDrafts((prev) =>
+        prev.map((round) => {
+          if (round.id !== roundId) {
+            return round;
+          }
+          const countKey =
+            side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
+          const listKey = side === "for" ? "submissionsFor" : "submissionsAgainst";
+          if (round[countKey] === 0) {
+            return round;
+          }
+
+          const nextCount = round[countKey] - 1;
+          if (nextCount < round[listKey].length) {
+            const message =
+              round[listKey].length === 1
+                ? "Clear the logged submission?"
+                : "Reduce the count and remove a submission detail?";
+            if (!window.confirm(message)) {
+              return round;
+            }
+            return {
+              ...round,
+              [countKey]: nextCount,
+              [listKey]: round[listKey].slice(0, nextCount),
+            };
+          }
+
           return {
             ...round,
             [countKey]: nextCount,
-            [listKey]: round[listKey].slice(0, nextCount),
           };
-        }
+        }),
+      );
+    },
+    [],
+  );
 
-        return {
-          ...round,
-          [countKey]: nextCount,
-        };
-      }),
-    );
-  }
-
-  function removeSubmission(roundId: string, side: "for" | "against", id: string) {
-    setRoundDrafts((prev) =>
-      prev.map((round) => {
-        if (round.id !== roundId) {
-          return round;
-        }
-        const listKey = side === "for" ? "submissionsFor" : "submissionsAgainst";
-        const countKey =
-          side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
-        const next = round[listKey].filter((item) => item.id !== id);
-        const nextCount =
-          round[countKey] === round[listKey].length
-            ? Math.max(0, round[countKey] - 1)
-            : round[countKey];
-        return {
-          ...round,
-          [listKey]: next,
-          [countKey]: Math.max(nextCount, next.length),
-        };
-      }),
-    );
-  }
+  const removeSubmission = useCallback(
+    (roundId: string, side: "for" | "against", id: string) => {
+      setRoundDrafts((prev) =>
+        prev.map((round) => {
+          if (round.id !== roundId) {
+            return round;
+          }
+          const listKey = side === "for" ? "submissionsFor" : "submissionsAgainst";
+          const countKey =
+            side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
+          const next = round[listKey].filter((item) => item.id !== id);
+          const nextCount =
+            round[countKey] === round[listKey].length
+              ? Math.max(0, round[countKey] - 1)
+              : round[countKey];
+          return {
+            ...round,
+            [listKey]: next,
+            [countKey]: Math.max(nextCount, next.length),
+          };
+        }),
+      );
+    },
+    [],
+  );
 
   function handleSubmissionSelect(
     roundId: string,
