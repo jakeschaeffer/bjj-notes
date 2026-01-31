@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/db/supabase/admin";
 import { buildExtractionRequest } from "@/lib/extraction/openai";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const AUDIO_BUCKET = "session-audio";
 const TRANSCRIBE_MODEL = "whisper-1";
