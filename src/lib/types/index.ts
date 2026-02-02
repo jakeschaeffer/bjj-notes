@@ -15,6 +15,7 @@ export type {
   RoundSubmission,
   SparringRound,
   PartnerName,
+  Partner,
   Session,
 } from "./session";
 
