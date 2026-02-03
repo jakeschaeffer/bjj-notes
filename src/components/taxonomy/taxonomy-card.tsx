@@ -88,7 +88,7 @@ export function TaxonomyCard({
 
           {/* Position info */}
           <div className="flex flex-wrap gap-2">
-            <Tag variant="category">{perspectiveLabels[position.perspective]}</Tag>
+            <Tag variant="zinc">{perspectiveLabels[position.perspective]}</Tag>
             {position.giApplicable && <Tag>Gi</Tag>}
             {position.nogiApplicable && <Tag>NoGi</Tag>}
             {position.isCustom && <Tag variant="status">Custom</Tag>}
@@ -161,9 +161,9 @@ export function TaxonomyCard({
       <div className="space-y-5">
         {/* Category and type badges */}
         <div className="flex flex-wrap gap-2">
-          <Tag variant="category">{categoryLabels[technique.category] ?? technique.category}</Tag>
+          <Tag variant="zinc">{categoryLabels[technique.category] ?? technique.category}</Tag>
           {technique.submissionType && (
-            <Tag variant="accent">{technique.submissionType.replace(/-/g, " ")}</Tag>
+            <Tag variant="amber">{technique.submissionType.replace(/-/g, " ")}</Tag>
           )}
           {technique.giApplicable && <Tag>Gi</Tag>}
           {technique.nogiApplicable && <Tag>NoGi</Tag>}
