@@ -1194,24 +1194,17 @@ export default function LogSessionPage() {
         draft.notes.trim() ||
         draft.keyDetails.length > 0,
     );
-    const invalidDrafts = filledDrafts.filter(
-      (draft) => Boolean(draft.techniqueId) && !draft.positionId,
-    );
-
-    if (invalidDrafts.length > 0) {
-      setFormError("Select a position before choosing a technique.");
-      return;
-    }
 
     const now = new Date().toISOString();
     const sessionId = createId();
 
+    // Techniques can now be logged with or without a position
     const techniquesDrilled: SessionTechnique[] = filledDrafts
-      .filter((draft) => draft.positionId && draft.techniqueId)
+      .filter((draft) => draft.techniqueId)
       .map((draft) => ({
         id: createId(),
         sessionId,
-        positionId: draft.positionId as string,
+        positionId: draft.positionId,
         techniqueId: draft.techniqueId as string,
         keyDetails: draft.keyDetails,
         notes: draft.notes.trim(),

@@ -17,7 +17,7 @@ export type BeltLevel = "white" | "blue" | "purple" | "brown" | "black" | "unkno
 export interface SessionTechnique {
   id: ID;
   sessionId: ID;
-  positionId: ID;
+  positionId: ID | null;
   techniqueId: ID;
   keyDetails: string[];
   notes: string;

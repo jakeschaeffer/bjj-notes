@@ -135,11 +135,10 @@ export function TechniquePicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm disabled:bg-zinc-50"
-        disabled={!positionId}
+        className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm"
       >
         <span className={value ? "text-zinc-900" : "text-zinc-400"}>
-          {positionId ? label : "Select position first"}
+          {label}
         </span>
         <span className="text-xs text-zinc-400">v</span>
       </button>
