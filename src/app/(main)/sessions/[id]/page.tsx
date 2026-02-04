@@ -266,7 +266,9 @@ export default function SessionDetailPage() {
               const techniqueInfo = index.techniquesById.get(
                 technique.techniqueId,
               );
-              const positionInfo = index.positionsById.get(technique.positionId);
+              const positionInfo = technique.positionId
+                ? index.positionsById.get(technique.positionId)
+                : null;
               const keyDetails = technique.keyDetails ?? [];
 
               return (
