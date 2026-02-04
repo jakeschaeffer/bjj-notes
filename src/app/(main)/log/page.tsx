@@ -11,6 +11,10 @@ import {
   ExtractionReviewPanel,
   type UnmatchedItem,
 } from "@/components/extraction/extraction-review-panel";
+import {
+  TaxonomyCard,
+  ClickableTaxonomy,
+} from "@/components/taxonomy/taxonomy-card";
 import { Button, Card, FormField, Modal, Tag } from "@/components/ui";
 import { supabase } from "@/db/supabase/client";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
@@ -41,6 +45,8 @@ const sessionTypes = [
   "seminar",
   "drilling-only",
 ] as const;
+
+type SessionMode = "lesson" | "sparring";
 
 type DraftTechnique = {
   id: string;
@@ -203,6 +209,17 @@ export default function LogSessionPage() {
     recordPartnerNames,
   } = useUserTaxonomy();
 
+  // Primary mode selection
+  const [mode, setMode] = useState<SessionMode>("lesson");
+  const [showMetadata, setShowMetadata] = useState(false);
+
+  // Taxonomy card state
+  const [taxonomyCard, setTaxonomyCard] = useState<{
+    type: "position" | "technique";
+    id: string;
+  } | null>(null);
+
+  // Session metadata
   const [date, setDate] = useState(() =>
     new Date().toISOString().slice(0, 10),
   );
@@ -214,10 +231,14 @@ export default function LogSessionPage() {
   const [notes, setNotes] = useState("");
   const [insights, setInsights] = useState("");
   const [goalsForNext, setGoalsForNext] = useState("");
+
+  // Technique drafts
   const [techniqueDrafts, setTechniqueDrafts] = useState<DraftTechnique[]>([
     createDraftTechnique(),
   ]);
-  const [roundDrafts, setRoundDrafts] = useState<DraftRound[]>([]);
+
+  // Sparring rounds
+  const [roundDrafts, setRoundDrafts] = useState<DraftRound[]>([createDraftRound()]);
   const [beltPickerRoundId, setBeltPickerRoundId] = useState<string | null>(null);
   const [submissionPicker, setSubmissionPicker] = useState<{
     roundId: string;
@@ -240,6 +261,8 @@ export default function LogSessionPage() {
   } | null>(null);
   const [customSubmissionName, setCustomSubmissionName] = useState("");
   const [customSubmissionPositionId, setCustomSubmissionPositionId] = useState("");
+
+  // Audio recording state
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [audioStatus, setAudioStatus] = useState<
     "idle" | "uploading" | "success" | "error"
@@ -258,6 +281,8 @@ export default function LogSessionPage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const [audioLevels, setAudioLevels] = useState<number[]>([0, 0, 0, 0, 0]);
+
+  // Transcript/extraction state
   const [transcriptText, setTranscriptText] = useState("");
   const [transcriptStatus, setTranscriptStatus] = useState<
     "idle" | "loading" | "error"
@@ -273,9 +298,12 @@ export default function LogSessionPage() {
   const [extractionLoading, setExtractionLoading] = useState(false);
   const [createUnmatchedItem, setCreateUnmatchedItem] = useState<UnmatchedItem | null>(null);
   const [showExtractionDebug, setShowExtractionDebug] = useState(false);
+
+  // Form state
   const [saved, setSaved] = useState(false);
   const [formError, setFormError] = useState("");
 
+  // Computed values
   const recentPositionIds = useMemo(() => {
     return getRecentIds(
       sessions.flatMap((session) => [
@@ -354,6 +382,14 @@ export default function LogSessionPage() {
   const submissionList = useMemo(() => {
     return [...submissionTechniques].sort((a, b) => a.name.localeCompare(b.name));
   }, [submissionTechniques]);
+
+  // Handlers
+  const openTaxonomyCard = useCallback(
+    (type: "position" | "technique", id: string) => {
+      setTaxonomyCard({ type, id });
+    },
+    [],
+  );
 
   const updateTechnique = useCallback(
     (id: string, update: Partial<DraftTechnique>) => {
@@ -676,7 +712,6 @@ export default function LogSessionPage() {
         extractionId: result.extractionId,
       });
 
-      // Fetch and match the extraction
       fetchAndMatchExtraction(result.extractionId, token);
       fetchTranscript(result.id, token);
     } catch (error) {
@@ -698,7 +733,6 @@ export default function LogSessionPage() {
       const recorder = new MediaRecorder(stream);
       recordingChunksRef.current = [];
 
-      // Set up audio analyzer for visualizer
       const audioContext = new AudioContext();
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
@@ -711,7 +745,6 @@ export default function LogSessionPage() {
       function updateLevels() {
         if (!analyserRef.current) return;
         analyserRef.current.getByteTimeDomainData(dataArray);
-        // Calculate amplitude for 5 segments of the waveform
         const segmentSize = Math.floor(dataArray.length / 5);
         const levels = [0, 1, 2, 3, 4].map((i) => {
           let sum = 0;
@@ -774,7 +807,6 @@ export default function LogSessionPage() {
     mediaRecorderRef.current = null;
     setIsRecording(false);
 
-    // Clean up audio analyzer
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
@@ -915,17 +947,15 @@ export default function LogSessionPage() {
       };
 
       if (data.extractedPayload) {
-        // Store raw extraction for debug modal
         setRawExtraction(data.extractedPayload);
 
         const matched = matchExtraction(data.extractedPayload, index);
         setMatchedExtraction(matched);
 
-        // Auto-apply the extraction to populate the form
         applyExtractionData(matched);
       }
     } catch {
-      // Silently fail - extraction review is optional
+      // Silently fail
     } finally {
       setExtractionLoading(false);
     }
@@ -934,9 +964,7 @@ export default function LogSessionPage() {
   function applyExtractionData(extraction: MatchedExtraction) {
     const { session, sparringRounds } = extraction;
 
-    // Apply session details
     if (session.date) {
-      // Try to parse date - it may come in various formats
       const parsed = new Date(session.date);
       if (!isNaN(parsed.getTime())) {
         setDate(parsed.toISOString().slice(0, 10));
@@ -954,7 +982,6 @@ export default function LogSessionPage() {
       }
     }
 
-    // Apply techniques
     if (session.techniques.length > 0 || session.positionNotes.length > 0) {
       const newDrafts: DraftTechnique[] = [];
 
@@ -984,10 +1011,11 @@ export default function LogSessionPage() {
 
       if (newDrafts.length > 0) {
         setTechniqueDrafts(newDrafts);
+        // Auto-switch to lesson mode if techniques were extracted
+        setMode("lesson");
       }
     }
 
-    // Apply sparring rounds
     if (sparringRounds.length > 0) {
       const newRounds: DraftRound[] = sparringRounds.map((round) => {
         const submissionsFor: RoundSubmission[] = round.submissionsFor
@@ -1006,7 +1034,6 @@ export default function LogSessionPage() {
             positionId: null,
           }));
 
-        // Try to parse belt
         let partnerBelt: BeltLevel | null = null;
         const beltStr = round.partnerBelt.toLowerCase();
         if (beltStr.includes("white")) partnerBelt = "white";
@@ -1031,6 +1058,10 @@ export default function LogSessionPage() {
       });
 
       setRoundDrafts(newRounds);
+      // Auto-switch to sparring mode if rounds were extracted
+      if (session.techniques.length === 0 && session.positionNotes.length === 0) {
+        setMode("sparring");
+      }
     }
   }
 
@@ -1052,7 +1083,6 @@ export default function LogSessionPage() {
   }
 
   function handleUnmatchedCreated() {
-    // After creating an item, re-match the extraction to update the UI
     if (matchedExtraction && audioResult) {
       supabase.auth.getSession().then(({ data }) => {
         const token = data.session?.access_token;
@@ -1137,7 +1167,7 @@ export default function LogSessionPage() {
     setInsights("");
     setGoalsForNext("");
     setTechniqueDrafts([createDraftTechnique()]);
-    setRoundDrafts([]);
+    setRoundDrafts([createDraftRound()]);
     setBeltPickerRoundId(null);
     setSubmissionPicker(null);
     setSubmissionSearch("");
@@ -1202,18 +1232,28 @@ export default function LogSessionPage() {
         notes: draft.notes.trim(),
       }));
 
-    const sparringRounds: SparringRound[] = roundDrafts.map((round) => ({
-      id: round.id,
-      partnerName: round.partnerName.trim() || null,
-      partnerBelt: round.partnerBelt,
-      submissionsFor: round.submissionsFor,
-      submissionsAgainst: round.submissionsAgainst,
-      submissionsForCount: round.submissionsForCount,
-      submissionsAgainstCount: round.submissionsAgainstCount,
-      dominantPositions: round.dominantPositions,
-      stuckPositions: round.stuckPositions,
-      notes: round.notes.trim(),
-    }));
+    const sparringRounds: SparringRound[] = roundDrafts
+      .filter(
+        (round) =>
+          round.partnerName.trim() ||
+          round.submissionsForCount > 0 ||
+          round.submissionsAgainstCount > 0 ||
+          round.dominantPositions.length > 0 ||
+          round.stuckPositions.length > 0 ||
+          round.notes.trim(),
+      )
+      .map((round) => ({
+        id: round.id,
+        partnerName: round.partnerName.trim() || null,
+        partnerBelt: round.partnerBelt,
+        submissionsFor: round.submissionsFor,
+        submissionsAgainst: round.submissionsAgainst,
+        submissionsForCount: round.submissionsForCount,
+        submissionsAgainstCount: round.submissionsAgainstCount,
+        dominantPositions: round.dominantPositions,
+        stuckPositions: round.stuckPositions,
+        notes: round.notes.trim(),
+      }));
 
     const session: Session = {
       id: sessionId,
@@ -1261,16 +1301,14 @@ export default function LogSessionPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Header */}
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
             Session Log
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">Log a session</h1>
-          <p className="text-sm text-zinc-600">
-            Capture the essentials fast, then review in session history.
-          </p>
         </div>
         <Link
           href="/sessions"
@@ -1280,23 +1318,27 @@ export default function LogSessionPage() {
         </Link>
       </header>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        <Card as="section" className="grid gap-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Voice Input Section - Always Prominent */}
+        <Card as="section" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Voice transcript (optional)</h2>
+            <div>
+              <h2 className="text-lg font-semibold">Quick capture</h2>
+              <p className="text-sm text-zinc-500">
+                Record a voice note or paste text to auto-fill your session.
+              </p>
+            </div>
             {audioStatus === "uploading" ? (
               <Tag variant="status">Uploading...</Tag>
             ) : null}
           </div>
-          <p className="text-sm text-zinc-600">
-            Upload a recording to generate a transcript and draft session summary.
-          </p>
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button
               variant={isRecording ? "danger" : "secondary"}
               onClick={isRecording ? stopRecording : startRecording}
             >
-              {isRecording ? "Stop recording" : "Record audio"}
+              {isRecording ? "Stop recording" : "Record voice note"}
             </Button>
             {isRecording && (
               <div className="flex items-center gap-1 px-2">
@@ -1309,10 +1351,11 @@ export default function LogSessionPage() {
                 ))}
               </div>
             )}
-            <Button onClick={() => setShowExtractionDebug(true)}>
-              Upload transcript
+            <Button variant="ghost" onClick={() => setShowExtractionDebug(true)}>
+              Paste transcript
             </Button>
           </div>
+
           {recordingUrl ? (
             <div className="flex items-center gap-3">
               <audio controls src={recordingUrl} className="h-8" />
@@ -1321,10 +1364,11 @@ export default function LogSessionPage() {
                 onClick={handleAudioUpload}
                 disabled={!audioFile || audioStatus === "uploading"}
               >
-                Upload audio
+                Upload & process
               </Button>
             </div>
           ) : null}
+
           {audioMessage ? (
             <p
               className={`text-sm ${
@@ -1334,25 +1378,11 @@ export default function LogSessionPage() {
               {audioMessage}
             </p>
           ) : null}
-          {audioResult ? (
-            <div className="flex items-center gap-3">
-              <p className="text-xs text-zinc-500">
-                Transcript ID: {audioResult.transcriptId} • Extraction ID:{" "}
-                {audioResult.extractionId}
-              </p>
-              {(rawExtraction || matchedExtraction) && (
-                <Button
-                  size="sm"
-                  onClick={() => setShowExtractionDebug(true)}
-                >
-                  Debug
-                </Button>
-              )}
-            </div>
-          ) : null}
+
           {extractionLoading ? (
-            <p className="text-sm text-amber-600">Loading extraction...</p>
+            <p className="text-sm text-amber-600">Processing transcript...</p>
           ) : null}
+
           {matchedExtraction ? (
             <ExtractionReviewPanel
               extraction={matchedExtraction}
@@ -1363,194 +1393,258 @@ export default function LogSessionPage() {
           ) : null}
         </Card>
 
-        <Card as="section" className="grid gap-4">
-          <h2 className="text-lg font-semibold">Session details</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              label="Date"
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              required
-            />
-            <FormField
-              as="select"
-              label="Session type"
-              value={sessionType}
-              onChange={(event) =>
-                setSessionType(event.target.value as typeof sessionTypes[number])
-              }
-            >
-              {sessionTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type.replace(/-/g, " ")}
-                </option>
-              ))}
-            </FormField>
-            <FormField
-              as="select"
-              label="Gi or NoGi"
-              value={giOrNogi}
-              onChange={(event) =>
-                setGiOrNogi(event.target.value as "gi" | "nogi" | "both")
-              }
-            >
-              <option value="gi">Gi</option>
-              <option value="nogi">NoGi</option>
-              <option value="both">Both</option>
-            </FormField>
-            <FormField
-              label="Duration (minutes)"
-              type="number"
-              min={0}
-              value={durationMinutes}
-              onChange={(event) =>
-                setDurationMinutes(
-                  event.target.value === "" ? "" : Number(event.target.value),
-                )
-              }
-              placeholder="Optional"
-            />
-          </div>
-        </Card>
+        {/* Primary Mode Selection Tabs */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("lesson")}
+            className={`flex-1 rounded-xl px-6 py-4 text-center font-semibold transition ${
+              mode === "lesson"
+                ? "bg-amber-500 text-white shadow-md"
+                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+            }`}
+          >
+            <span className="block text-lg">Log Lesson</span>
+            <span className="block text-xs opacity-80">
+              Techniques drilled, position notes
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("sparring")}
+            className={`flex-1 rounded-xl px-6 py-4 text-center font-semibold transition ${
+              mode === "sparring"
+                ? "bg-amber-500 text-white shadow-md"
+                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+            }`}
+          >
+            <span className="block text-lg">Log Sparring</span>
+            <span className="block text-xs opacity-80">
+              Rounds, partners, submissions
+            </span>
+          </button>
+        </div>
 
-        <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Techniques drilled</h2>
-            <Button onClick={addTechnique}>
-              Add another technique
-            </Button>
-          </div>
-          <p className="text-sm text-zinc-600">
-            Optional. Leave blank if you only want to log sparring rounds.
-          </p>
-
-          {techniqueDrafts.map((draft, indexValue) => {
-            const technique = draft.techniqueId
-              ? index.techniquesById.get(draft.techniqueId) ?? null
-              : null;
-            const suggestions = buildTagSuggestions(technique, tagSuggestions);
-
-            return (
-              <Card key={draft.id} variant="nested">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold text-zinc-700">
-                    Technique {indexValue + 1}
-                  </h3>
-                  {techniqueDrafts.length > 1 ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeTechnique(draft.id)}
-                      className="hover:text-red-500"
-                    >
-                      Remove
-                    </Button>
-                  ) : null}
-                </div>
-                <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2 text-sm font-medium text-zinc-700">
-                    <span>Position</span>
-                    <PositionPicker
-                      value={draft.positionId}
-                      onChange={(positionId) =>
-                        updateTechnique(draft.id, {
-                          positionId,
-                          techniqueId: null,
-                        })
-                      }
-                      recentPositionIds={recentPositionIds}
-                      index={index}
-                      onAddCustomPosition={addCustomPosition}
-                    />
-                  </div>
-                  <div className="space-y-2 text-sm font-medium text-zinc-700">
-                    <span>Technique (optional)</span>
-                    <TechniquePicker
-                      value={draft.techniqueId}
-                      positionId={draft.positionId}
-                      onChange={(techniqueId) =>
-                        updateTechnique(draft.id, { techniqueId })
-                      }
-                      recentTechniqueIds={recentTechniqueIds}
-                      index={index}
-                      onAddCustomTechnique={addCustomTechnique}
-                    />
-                    <p className="text-xs font-medium text-zinc-400">
-                      Leave blank to save a position note instead.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateTechnique(draft.id, { expanded: !draft.expanded })
+        {/* Collapsible Metadata Section */}
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50">
+          <button
+            type="button"
+            onClick={() => setShowMetadata(!showMetadata)}
+            className="flex w-full items-center justify-between px-5 py-3 text-left"
+          >
+            <span className="text-sm font-medium text-zinc-600">
+              Session details: {new Date(date).toLocaleDateString()} &bull;{" "}
+              {sessionType.replace(/-/g, " ")} &bull; {giOrNogi.toUpperCase()}
+              {durationMinutes ? ` • ${durationMinutes}min` : ""}
+            </span>
+            <span className="text-xs text-zinc-400">{showMetadata ? "Hide" : "Edit"}</span>
+          </button>
+          {showMetadata && (
+            <div className="border-t border-zinc-200 px-5 py-4">
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+                <FormField
+                  label="Date"
+                  type="date"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                  required
+                />
+                <FormField
+                  as="select"
+                  label="Session type"
+                  value={sessionType}
+                  onChange={(event) =>
+                    setSessionType(event.target.value as typeof sessionTypes[number])
                   }
-                  className="mt-4 text-xs font-semibold text-zinc-500"
                 >
-                  {draft.expanded ? "Collapse details" : "Add details"}
-                </button>
+                  {sessionTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type.replace(/-/g, " ")}
+                    </option>
+                  ))}
+                </FormField>
+                <FormField
+                  as="select"
+                  label="Gi or NoGi"
+                  value={giOrNogi}
+                  onChange={(event) =>
+                    setGiOrNogi(event.target.value as "gi" | "nogi" | "both")
+                  }
+                >
+                  <option value="gi">Gi</option>
+                  <option value="nogi">NoGi</option>
+                  <option value="both">Both</option>
+                </FormField>
+                <FormField
+                  label="Duration (min)"
+                  type="number"
+                  min={0}
+                  value={durationMinutes}
+                  onChange={(event) =>
+                    setDurationMinutes(
+                      event.target.value === "" ? "" : Number(event.target.value),
+                    )
+                  }
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+          )}
+        </div>
 
-                {draft.expanded ? (
-                  <div className="mt-4 space-y-4 rounded-xl border border-zinc-100 bg-zinc-50 p-4">
-                    <div className="space-y-2">
-                      <p className="text-sm font-semibold text-zinc-700">Key details</p>
-                      <TagPicker
-                        value={draft.keyDetails}
-                        suggestions={suggestions}
-                        onChange={(tags) =>
-                          updateTechnique(draft.id, { keyDetails: tags })
+        {/* Lesson Mode: Techniques Section */}
+        {mode === "lesson" && (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">What did you work on?</h2>
+              <Button variant="secondary" size="sm" onClick={addTechnique}>
+                Add technique
+              </Button>
+            </div>
+
+            {techniqueDrafts.map((draft, indexValue) => {
+              const technique = draft.techniqueId
+                ? index.techniquesById.get(draft.techniqueId) ?? null
+                : null;
+              const position = draft.positionId
+                ? index.positionsById.get(draft.positionId) ?? null
+                : null;
+              const suggestions = buildTagSuggestions(technique, tagSuggestions);
+
+              return (
+                <Card key={draft.id} variant="nested">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-zinc-700">
+                      Technique {indexValue + 1}
+                    </h3>
+                    {techniqueDrafts.length > 1 ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeTechnique(draft.id)}
+                        className="hover:text-red-500"
+                      >
+                        Remove
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2 text-sm font-medium text-zinc-700">
+                      <span>Position</span>
+                      <PositionPicker
+                        value={draft.positionId}
+                        onChange={(positionId) =>
+                          updateTechnique(draft.id, {
+                            positionId,
+                            techniqueId: null,
+                          })
                         }
+                        recentPositionIds={recentPositionIds}
+                        index={index}
+                        onAddCustomPosition={addCustomPosition}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      {!draft.notesExpanded && draft.notes.length === 0 ? (
+                      {position && (
                         <button
                           type="button"
-                          onClick={() =>
-                            updateTechnique(draft.id, { notesExpanded: true })
-                          }
-                          className="text-xs font-semibold text-zinc-500"
+                          onClick={() => openTaxonomyCard("position", position.id)}
+                          className="text-xs text-amber-600 hover:underline"
                         >
-                          Add notes
+                          View {position.name} details
                         </button>
-                      ) : (
-                        <label className="space-y-2 text-sm font-medium text-zinc-700">
-                          Notes
-                          <textarea
-                            value={draft.notes}
-                            onChange={(event) =>
-                              updateTechnique(draft.id, {
-                                notes: event.target.value,
-                                notesExpanded: true,
-                              })
-                            }
-                            className="min-h-[90px] w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                          />
-                        </label>
+                      )}
+                    </div>
+                    <div className="space-y-2 text-sm font-medium text-zinc-700">
+                      <span>Technique (optional)</span>
+                      <TechniquePicker
+                        value={draft.techniqueId}
+                        positionId={draft.positionId}
+                        onChange={(techniqueId) =>
+                          updateTechnique(draft.id, { techniqueId })
+                        }
+                        recentTechniqueIds={recentTechniqueIds}
+                        index={index}
+                        onAddCustomTechnique={addCustomTechnique}
+                      />
+                      {technique && (
+                        <button
+                          type="button"
+                          onClick={() => openTaxonomyCard("technique", technique.id)}
+                          className="text-xs text-amber-600 hover:underline"
+                        >
+                          View {technique.name} details
+                        </button>
                       )}
                     </div>
                   </div>
-                ) : null}
-              </Card>
-            );
-          })}
-        </section>
 
-        <Card as="section" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">Sparring rounds</h2>
-            <Button onClick={addRound}>
-              Add round
-            </Button>
-          </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateTechnique(draft.id, { expanded: !draft.expanded })
+                    }
+                    className="mt-4 text-xs font-semibold text-zinc-500"
+                  >
+                    {draft.expanded ? "Collapse details" : "Add details"}
+                  </button>
 
-          {roundDrafts.length === 0 ? (
-            <p className="text-sm text-zinc-600">
-              Optional. Add rounds to capture sparring notes and outcomes.
-            </p>
-          ) : (
+                  {draft.expanded ? (
+                    <div className="mt-4 space-y-4 rounded-xl border border-zinc-100 bg-zinc-50 p-4">
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-zinc-700">Key details</p>
+                        <TagPicker
+                          value={draft.keyDetails}
+                          suggestions={suggestions}
+                          onChange={(tags) =>
+                            updateTechnique(draft.id, { keyDetails: tags })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        {!draft.notesExpanded && draft.notes.length === 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateTechnique(draft.id, { notesExpanded: true })
+                            }
+                            className="text-xs font-semibold text-zinc-500"
+                          >
+                            Add notes
+                          </button>
+                        ) : (
+                          <label className="space-y-2 text-sm font-medium text-zinc-700">
+                            Notes
+                            <textarea
+                              value={draft.notes}
+                              onChange={(event) =>
+                                updateTechnique(draft.id, {
+                                  notes: event.target.value,
+                                  notesExpanded: true,
+                                })
+                              }
+                              className="min-h-[90px] w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </Card>
+              );
+            })}
+          </section>
+        )}
+
+        {/* Sparring Mode: Rounds Section */}
+        {mode === "sparring" && (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">How did sparring go?</h2>
+              <Button variant="secondary" size="sm" onClick={addRound}>
+                Add round
+              </Button>
+            </div>
+
             <div className="space-y-4">
               {roundDrafts.map((round, roundIndex) => {
                 const belt = beltOptions.find(
@@ -1568,21 +1662,20 @@ export default function LogSessionPage() {
                   : [];
 
                 return (
-                  <div
-                    key={round.id}
-                    className="rounded-2xl border border-zinc-100 bg-zinc-50 p-5"
-                  >
+                  <Card key={round.id} variant="nested">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h3 className="text-sm font-semibold text-zinc-700">
                         Round {roundIndex + 1}
                       </h3>
-                      <button
-                        type="button"
-                        onClick={() => removeRound(round.id)}
-                        className="text-xs font-semibold text-zinc-500 transition hover:text-red-500"
-                      >
-                        Remove
-                      </button>
+                      {roundDrafts.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeRound(round.id)}
+                          className="text-xs font-semibold text-zinc-500 transition hover:text-red-500"
+                        >
+                          Remove
+                        </button>
+                      )}
                     </div>
 
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -1680,11 +1773,11 @@ export default function LogSessionPage() {
                                   const technique = index.techniquesById.get(
                                     submission.techniqueId,
                                   );
-                                  const position = submission.positionId
+                                  const subPosition = submission.positionId
                                     ? index.positionsById.get(submission.positionId)
                                     : null;
-                                  const labelText = position
-                                    ? `${technique?.name ?? "Unknown submission"} (${position.name})`
+                                  const labelText = subPosition
+                                    ? `${technique?.name ?? "Unknown"} (${subPosition.name})`
                                     : technique?.name ?? "Unknown submission";
 
                                   return (
@@ -1692,7 +1785,13 @@ export default function LogSessionPage() {
                                       key={submission.id}
                                       className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
                                     >
-                                      {labelText}
+                                      <ClickableTaxonomy
+                                        type="technique"
+                                        id={submission.techniqueId}
+                                        name={technique?.name ?? "Unknown"}
+                                        onClick={openTaxonomyCard}
+                                        className="text-amber-700 no-underline hover:underline"
+                                      />
                                       <button
                                         type="button"
                                         onClick={() =>
@@ -1753,27 +1852,40 @@ export default function LogSessionPage() {
                               </button>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {round.dominantPositions.map((positionId) => (
-                                <span
-                                  key={positionId}
-                                  className="flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600"
-                                >
-                                  {index.positionsById.get(positionId)?.name ?? positionId}
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      toggleRoundPosition(
-                                        round.id,
-                                        "dominant",
-                                        positionId,
-                                      )
-                                    }
-                                    className="text-xs text-zinc-500 hover:text-zinc-700"
+                              {round.dominantPositions.map((positionId) => {
+                                const pos = index.positionsById.get(positionId);
+                                return (
+                                  <span
+                                    key={positionId}
+                                    className="flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600"
                                   >
-                                    x
-                                  </button>
-                                </span>
-                              ))}
+                                    {pos ? (
+                                      <ClickableTaxonomy
+                                        type="position"
+                                        id={positionId}
+                                        name={pos.name}
+                                        onClick={openTaxonomyCard}
+                                        className="text-zinc-600 no-underline hover:underline"
+                                      />
+                                    ) : (
+                                      positionId
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        toggleRoundPosition(
+                                          round.id,
+                                          "dominant",
+                                          positionId,
+                                        )
+                                      }
+                                      className="text-xs text-zinc-500 hover:text-zinc-700"
+                                    >
+                                      x
+                                    </button>
+                                  </span>
+                                );
+                              })}
                               {round.dominantPositions.length === 0 ? (
                                 <span className="text-xs text-zinc-400">None yet.</span>
                               ) : null}
@@ -1797,23 +1909,36 @@ export default function LogSessionPage() {
                               </button>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {round.stuckPositions.map((positionId) => (
-                                <span
-                                  key={positionId}
-                                  className="flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600"
-                                >
-                                  {index.positionsById.get(positionId)?.name ?? positionId}
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      toggleRoundPosition(round.id, "stuck", positionId)
-                                    }
-                                    className="text-xs text-zinc-500 hover:text-zinc-700"
+                              {round.stuckPositions.map((positionId) => {
+                                const pos = index.positionsById.get(positionId);
+                                return (
+                                  <span
+                                    key={positionId}
+                                    className="flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600"
                                   >
-                                    x
-                                  </button>
-                                </span>
-                              ))}
+                                    {pos ? (
+                                      <ClickableTaxonomy
+                                        type="position"
+                                        id={positionId}
+                                        name={pos.name}
+                                        onClick={openTaxonomyCard}
+                                        className="text-zinc-600 no-underline hover:underline"
+                                      />
+                                    ) : (
+                                      positionId
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        toggleRoundPosition(round.id, "stuck", positionId)
+                                      }
+                                      className="text-xs text-zinc-500 hover:text-zinc-700"
+                                    >
+                                      x
+                                    </button>
+                                  </span>
+                                );
+                              })}
                               {round.stuckPositions.length === 0 ? (
                                 <span className="text-xs text-zinc-400">None yet.</span>
                               ) : null}
@@ -1833,37 +1958,58 @@ export default function LogSessionPage() {
                         </label>
                       </div>
                     ) : null}
-                  </div>
+                  </Card>
                 );
               })}
             </div>
+          </section>
+        )}
+
+        {/* Notes Section - Collapsed by default */}
+        <div className="rounded-xl border border-zinc-200 bg-zinc-50">
+          <button
+            type="button"
+            onClick={() => setNotes(notes ? notes : " ")}
+            className="flex w-full items-center justify-between px-5 py-3 text-left"
+          >
+            <span className="text-sm font-medium text-zinc-600">
+              Session notes & reflections
+              {notes.trim() || insights.trim() || goalsForNext.trim()
+                ? " (has content)"
+                : ""}
+            </span>
+            <span className="text-xs text-zinc-400">
+              {notes.trim() || insights.trim() || goalsForNext.trim() ? "Edit" : "Add"}
+            </span>
+          </button>
+          {(notes.trim() || insights.trim() || goalsForNext.trim() || notes === " ") && (
+            <div className="border-t border-zinc-200 px-5 py-4 space-y-4">
+              <FormField
+                as="textarea"
+                label="Session notes"
+                value={notes === " " ? "" : notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="What did you learn today?"
+              />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                  label="Insights (comma separated)"
+                  value={insights}
+                  onChange={(event) => setInsights(event.target.value)}
+                  placeholder="posture, grip breaking"
+                />
+                <FormField
+                  label="Goals for next session"
+                  value={goalsForNext}
+                  onChange={(event) => setGoalsForNext(event.target.value)}
+                  placeholder="play more open guard"
+                />
+              </div>
+            </div>
           )}
-        </Card>
+        </div>
 
-        <Card as="section" className="grid gap-4">
-          <h2 className="text-lg font-semibold">Notes</h2>
-          <FormField
-            as="textarea"
-            label="Session notes"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              label="Insights (comma separated)"
-              value={insights}
-              onChange={(event) => setInsights(event.target.value)}
-              placeholder="posture, grip breaking"
-            />
-            <FormField
-              label="Goals for next session"
-              value={goalsForNext}
-              onChange={(event) => setGoalsForNext(event.target.value)}
-              placeholder="play more open guard"
-            />
-          </div>
-        </Card>
-
+        {/* Modals */}
         <Modal
           open={Boolean(beltPickerRoundId)}
           onClose={() => setBeltPickerRoundId(null)}
@@ -2309,28 +2455,28 @@ export default function LogSessionPage() {
         <Modal
           open={showExtractionDebug}
           onClose={() => setShowExtractionDebug(false)}
-          title="Extraction Debug"
+          title="Paste Transcript"
         >
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Test from Transcript Text
+              <p className="text-sm text-zinc-600 mb-2">
+                Paste your session notes or transcript to auto-fill the form.
               </p>
               <textarea
                 value={debugTranscriptInput}
                 onChange={(event) => setDebugTranscriptInput(event.target.value)}
                 rows={6}
-                className="mt-2 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="Paste a transcript to run extraction without audio."
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                placeholder="Today we worked on closed guard, arm bar from guard..."
               />
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={handleTranscriptTextExtraction}
                   disabled={debugStatus === "running"}
-                  className="rounded-full bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-200"
+                  className="rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-200"
                 >
-                  {debugStatus === "running" ? "Running..." : "Run extraction"}
+                  {debugStatus === "running" ? "Processing..." : "Extract session data"}
                 </button>
                 {debugMessage ? (
                   <span
@@ -2343,36 +2489,32 @@ export default function LogSessionPage() {
                 ) : null}
               </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Transcript Text
-              </p>
-              <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
-                {transcriptText ||
-                  (transcriptStatus === "loading"
-                    ? "Loading transcript..."
-                    : "No transcript loaded")}
-              </pre>
-              {transcriptMessage ? (
-                <p className="mt-2 text-xs text-red-600">{transcriptMessage}</p>
-              ) : null}
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Raw Extraction Payload
-              </p>
-              <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
-                {rawExtraction ? JSON.stringify(rawExtraction, null, 2) : "No extraction data"}
-              </pre>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Matched Extraction
-              </p>
-              <pre className="mt-2 max-h-64 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
-                {matchedExtraction ? JSON.stringify(matchedExtraction, null, 2) : "No matched data"}
-              </pre>
-            </div>
+
+            {(transcriptText || rawExtraction || matchedExtraction) && (
+              <>
+                {transcriptText && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                      Transcript
+                    </p>
+                    <pre className="mt-2 max-h-32 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
+                      {transcriptText}
+                    </pre>
+                  </div>
+                )}
+                {rawExtraction && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                      Extracted Data
+                    </p>
+                    <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
+                      {JSON.stringify(rawExtraction, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </>
+            )}
+
             <button
               type="button"
               onClick={() => setShowExtractionDebug(false)}
@@ -2382,6 +2524,16 @@ export default function LogSessionPage() {
             </button>
           </div>
         </Modal>
+
+        {/* Taxonomy Card Modal */}
+        <TaxonomyCard
+          type={taxonomyCard?.type ?? "position"}
+          id={taxonomyCard?.id ?? null}
+          open={Boolean(taxonomyCard)}
+          onClose={() => setTaxonomyCard(null)}
+          index={index}
+          onNavigate={(type, id) => setTaxonomyCard({ type, id })}
+        />
 
         {formError ? (
           <p className="text-sm font-semibold text-red-500">{formError}</p>
