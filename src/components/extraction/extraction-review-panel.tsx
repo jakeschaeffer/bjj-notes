@@ -28,10 +28,10 @@ function ConfidenceBadge({ score }: { score: number }) {
   const percent = Math.round(score * 100);
   const color =
     score >= 0.8
-      ? "bg-emerald-100 text-emerald-700"
+      ? "bg-[rgba(46,242,196,0.18)] text-[var(--gg-signal)]"
       : score >= 0.6
-        ? "bg-amber-100 text-amber-700"
-        : "bg-red-100 text-red-700";
+        ? "bg-[rgba(255,179,71,0.2)] text-[var(--gg-warning)]"
+        : "bg-[rgba(255,91,91,0.2)] text-[var(--gg-danger)]";
 
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${color}`}>
@@ -42,7 +42,7 @@ function ConfidenceBadge({ score }: { score: number }) {
 
 function NoMatchBadge() {
   return (
-    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+    <span className="rounded-full border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-2 py-0.5 text-xs font-semibold text-[var(--gg-text-muted)]">
       No match
     </span>
   );
@@ -53,7 +53,7 @@ function CreateButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-semibold text-white transition hover:bg-amber-600"
+      className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-2 py-0.5 text-xs font-semibold text-black transition hover:brightness-110"
     >
       Create
     </button>
@@ -70,22 +70,22 @@ function TechniqueItem({
   onCreateTechnique?: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-zinc-100 bg-white p-3">
+    <div className="rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-zinc-700">
+          <p className="text-sm font-medium text-[var(--gg-text)]">
             {item.positionMatch?.item.name ?? item.positionName}
             {item.techniqueMatch ? ` → ${item.techniqueMatch.item.name}` : item.techniqueName ? ` → ${item.techniqueName}` : ""}
           </p>
           {item.notes ? (
-            <p className="text-xs text-zinc-500">{item.notes}</p>
+            <p className="text-xs text-[var(--gg-text-muted)]">{item.notes}</p>
           ) : null}
           {item.keyDetails.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {item.keyDetails.map((detail, i) => (
                 <span
                   key={i}
-                  className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
+                  className="rounded-full bg-[var(--gg-surface-1)] px-2 py-0.5 text-xs text-[var(--gg-text-muted)]"
                 >
                   {detail}
                 </span>
@@ -128,21 +128,21 @@ function PositionNoteItem({
   onCreatePosition?: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-zinc-100 bg-white p-3">
+    <div className="rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] p-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-1">
-          <p className="text-sm font-medium text-zinc-700">
+          <p className="text-sm font-medium text-[var(--gg-text)]">
             {item.positionMatch?.item.name ?? item.positionName}
           </p>
           {item.notes ? (
-            <p className="text-xs text-zinc-500">{item.notes}</p>
+            <p className="text-xs text-[var(--gg-text-muted)]">{item.notes}</p>
           ) : null}
           {item.keyDetails.length > 0 ? (
             <div className="flex flex-wrap gap-1">
               {item.keyDetails.map((detail, i) => (
                 <span
                   key={i}
-                  className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600"
+                  className="rounded-full bg-[var(--gg-surface-1)] px-2 py-0.5 text-xs text-[var(--gg-text-muted)]"
                 >
                   {detail}
                 </span>
@@ -167,8 +167,8 @@ function PositionNoteItem({
 
 function SubmissionItem({ item }: { item: MatchedSubmission }) {
   return (
-    <span className="flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-xs">
-      <span className="text-zinc-700">
+    <span className="flex items-center gap-1 rounded-full border border-[var(--gg-border)] bg-[var(--gg-surface-1)] px-2 py-0.5 text-xs">
+      <span className="text-[var(--gg-text)]">
         {item.techniqueMatch?.item.name ?? item.name}
       </span>
       {item.techniqueMatch ? (
@@ -186,8 +186,8 @@ function RoundItem({
   index: number;
 }) {
   return (
-    <div className="rounded-lg border border-zinc-100 bg-white p-3">
-      <p className="text-sm font-semibold text-zinc-700">
+    <div className="rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] p-3">
+      <p className="text-sm font-semibold text-[var(--gg-text)]">
         Round {index + 1}
         {item.partnerName ? ` vs ${item.partnerName}` : ""}
         {item.partnerBelt ? ` (${item.partnerBelt})` : ""}
@@ -195,7 +195,7 @@ function RoundItem({
 
       {item.submissionsFor.length > 0 ? (
         <div className="mt-2 space-y-1">
-          <p className="text-xs font-medium text-zinc-500">
+          <p className="text-xs font-medium text-[var(--gg-text-muted)]">
             I submitted: {item.submissionsFor.length}
           </p>
           <div className="flex flex-wrap gap-1">
@@ -208,7 +208,7 @@ function RoundItem({
 
       {item.submissionsAgainst.length > 0 ? (
         <div className="mt-2 space-y-1">
-          <p className="text-xs font-medium text-zinc-500">
+          <p className="text-xs font-medium text-[var(--gg-text-muted)]">
             I got caught: {item.submissionsAgainst.length}
           </p>
           <div className="flex flex-wrap gap-1">
@@ -221,12 +221,12 @@ function RoundItem({
 
       {item.dominantPositions.length > 0 ? (
         <div className="mt-2 space-y-1">
-          <p className="text-xs font-medium text-zinc-500">Dominated:</p>
+          <p className="text-xs font-medium text-[var(--gg-text-muted)]">Dominated:</p>
           <div className="flex flex-wrap gap-1">
             {item.dominantPositions.map((pos, i) => (
               <span
                 key={i}
-                className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700"
+                className="rounded-full bg-[rgba(46,242,196,0.16)] px-2 py-0.5 text-xs text-[var(--gg-signal)]"
               >
                 {pos}
               </span>
@@ -237,12 +237,12 @@ function RoundItem({
 
       {item.stuckPositions.length > 0 ? (
         <div className="mt-2 space-y-1">
-          <p className="text-xs font-medium text-zinc-500">Got stuck:</p>
+          <p className="text-xs font-medium text-[var(--gg-text-muted)]">Got stuck:</p>
           <div className="flex flex-wrap gap-1">
             {item.stuckPositions.map((pos, i) => (
               <span
                 key={i}
-                className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700"
+                className="rounded-full bg-[rgba(255,91,91,0.18)] px-2 py-0.5 text-xs text-[var(--gg-danger)]"
               >
                 {pos}
               </span>
@@ -252,7 +252,7 @@ function RoundItem({
       ) : null}
 
       {item.notes ? (
-        <p className="mt-2 text-xs text-zinc-500">{item.notes}</p>
+        <p className="mt-2 text-xs text-[var(--gg-text-muted)]">{item.notes}</p>
       ) : null}
     </div>
   );
@@ -286,13 +286,13 @@ export function ExtractionReviewPanel({
     hasUnmatchedPositions || hasUnmatchedTechniques || hasUnmatchedSubmissions;
 
   return (
-    <div className="space-y-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+    <div className="space-y-4 rounded-xl border border-[rgba(46,242,196,0.35)] bg-[rgba(18,23,28,0.92)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-amber-900">
+          <h3 className="text-sm font-semibold text-[var(--gg-text)]">
             Extracted from transcript
           </h3>
-          <p className="text-xs text-amber-700">
+          <p className="text-xs text-[var(--gg-text-muted)]">
             Review the extracted data and apply to pre-fill the form.
           </p>
         </div>
@@ -300,14 +300,14 @@ export function ExtractionReviewPanel({
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
+            className="rounded-full border border-[var(--gg-border)] px-3 py-1 text-xs font-semibold text-[var(--gg-text-muted)] transition hover:border-[var(--gg-signal)] hover:text-[var(--gg-text)]"
           >
             Dismiss
           </button>
           <button
             type="button"
             onClick={onApply}
-            className="rounded-full bg-amber-600 px-3 py-1 text-xs font-semibold text-white transition hover:bg-amber-700"
+            className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-3 py-1 text-xs font-semibold text-black transition hover:brightness-110"
           >
             Apply to form
           </button>
@@ -315,17 +315,17 @@ export function ExtractionReviewPanel({
       </div>
 
       {hasUnmatched ? (
-        <p className="text-xs text-amber-700">
+        <p className="text-xs text-[var(--gg-text-muted)]">
           Some items could not be matched. Click &quot;Create&quot; to add them to your taxonomy, or apply and fix later.
         </p>
       ) : null}
 
       {session.date || session.giOrNogi || session.sessionType ? (
         <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--gg-text-muted)]">
             Session Info
           </p>
-          <div className="flex flex-wrap gap-2 text-xs text-amber-800">
+          <div className="flex flex-wrap gap-2 text-xs text-[var(--gg-text)]">
             {session.date ? <span>Date: {session.date}</span> : null}
             {session.giOrNogi ? <span>• {session.giOrNogi.toUpperCase()}</span> : null}
             {session.sessionType ? <span>• {session.sessionType}</span> : null}
@@ -335,7 +335,7 @@ export function ExtractionReviewPanel({
 
       {hasTechniques ? (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--gg-text-muted)]">
             Techniques ({session.techniques.length})
           </p>
           <div className="space-y-2">
@@ -373,7 +373,7 @@ export function ExtractionReviewPanel({
 
       {hasPositionNotes ? (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--gg-text-muted)]">
             Position Notes ({session.positionNotes.length})
           </p>
           <div className="space-y-2">
@@ -398,7 +398,7 @@ export function ExtractionReviewPanel({
 
       {hasRounds ? (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-600">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--gg-text-muted)]">
             Sparring Rounds ({sparringRounds.length})
           </p>
           <div className="space-y-2">

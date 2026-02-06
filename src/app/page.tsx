@@ -27,32 +27,32 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 via-white to-white text-zinc-900">
+    <div className="min-h-screen bg-[var(--gg-bg)] text-[var(--gg-text)] gg-mat-grid">
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 sm:py-14">
         <header className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500">
+          <p className="font-display text-xs font-semibold uppercase tracking-[0.4em] text-[var(--gg-text-muted)]">
             Grapple Graph
           </p>
           <AccountActions />
         </header>
         <header className="space-y-5">
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
+          <h1 className="font-display text-4xl font-semibold tracking-tight sm:text-5xl">
             Train. Log. Improve.
           </h1>
-          <p className="max-w-xl text-base text-zinc-600 sm:text-lg">
+          <p className="max-w-xl text-base text-[var(--gg-text-muted)] sm:text-lg">
             Capture sessions fast, then find techniques and patterns when it
             matters most.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
               href="/log"
-              className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+              className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-5 py-2.5 text-sm font-semibold text-black transition hover:brightness-110"
             >
               Log a session
             </Link>
             <Link
               href="/techniques"
-              className="rounded-full border border-zinc-200 px-5 py-2.5 text-sm font-semibold text-zinc-900 transition hover:border-zinc-300 hover:bg-zinc-100"
+              className="rounded-full border border-[var(--gg-border)] px-5 py-2.5 text-sm font-semibold text-[var(--gg-text)] transition hover:border-[var(--gg-signal)] hover:text-[var(--gg-signal)]"
             >
               Browse techniques
             </Link>
@@ -64,17 +64,17 @@ export default function Home() {
             <Link
               key={action.href}
               href={action.href}
-              className="group rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-200 hover:shadow-md"
+              className="group rounded-2xl border border-[var(--gg-border)] bg-[var(--gg-surface-1)] p-5 shadow-[0_16px_32px_rgba(0,0,0,0.28)] transition hover:-translate-y-0.5 hover:border-[var(--gg-signal)]"
             >
               <div className="flex items-start justify-between">
-                <h2 className="text-lg font-semibold text-zinc-900">
+                <h2 className="text-lg font-semibold text-[var(--gg-text)]">
                   {action.title}
                 </h2>
-                <span className="text-sm text-zinc-400 transition group-hover:text-zinc-600">
+                <span className="text-sm text-[var(--gg-text-muted)] transition group-hover:text-[var(--gg-signal)]">
                   -&gt;
                 </span>
               </div>
-              <p className="mt-2 text-sm text-zinc-600">
+              <p className="mt-2 text-sm text-[var(--gg-text-muted)]">
                 {action.description}
               </p>
             </Link>

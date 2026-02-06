@@ -147,7 +147,7 @@ export function PositionPicker({
   }) => {
     const hasChildren = index.hasChildren(position.id);
     return (
-      <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm">
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]">
         <button
           type="button"
           onClick={() => handleSelect(position.id)}
@@ -155,7 +155,7 @@ export function PositionPicker({
         >
           <span className="block">{position.name}</span>
           {showPath ? (
-            <span className="block text-xs text-zinc-400">
+            <span className="block text-xs text-[var(--gg-text-muted)]">
               {index.getFullPath(position.id)}
             </span>
           ) : null}
@@ -167,7 +167,7 @@ export function PositionPicker({
               event.stopPropagation();
               onDrill();
             }}
-            className="rounded-full px-2 text-xs text-zinc-400 transition hover:text-zinc-700"
+            className="rounded-full px-2 text-xs text-[var(--gg-text-muted)] transition hover:text-[var(--gg-text)]"
             aria-label={`Browse ${position.name}`}
           >
             &gt;
@@ -182,12 +182,12 @@ export function PositionPicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm"
+        className="flex w-full items-center justify-between rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
       >
-        <span className={value ? "text-zinc-900" : "text-zinc-400"}>
+        <span className={value ? "text-[var(--gg-text)]" : "text-[var(--gg-text-muted)]"}>
           {positionLabel}
         </span>
-        <span className="text-xs text-zinc-400">v</span>
+        <span className="text-xs text-[var(--gg-text-muted)]">v</span>
       </button>
 
       <Modal open={open} onClose={closeModal} title={breadcrumb}>
@@ -196,14 +196,14 @@ export function PositionPicker({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search positions"
-            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)] placeholder:text-[var(--gg-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)]"
           />
 
           {currentParentId && !isSearching ? (
             <button
               type="button"
               onClick={() => handleSelect(currentParentId)}
-              className="w-full rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-left text-sm font-semibold text-amber-900"
+              className="w-full rounded-lg border border-[rgba(46,242,196,0.4)] bg-[rgba(46,242,196,0.12)] px-3 py-2 text-left text-sm font-semibold text-[var(--gg-text)]"
             >
               Select {currentParent?.name} (general)
             </button>
@@ -211,7 +211,7 @@ export function PositionPicker({
 
           {!currentParentId && !isSearching && recentPositions.length > 0 ? (
             <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
                 Recent
               </p>
               <div className="space-y-2">
@@ -220,7 +220,7 @@ export function PositionPicker({
                     key={position.id}
                     type="button"
                     onClick={() => handleSelect(position.id)}
-                    className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                    className="flex w-full items-center justify-between rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
                   >
                     <span>{position.name}</span>
                   </button>
@@ -232,7 +232,7 @@ export function PositionPicker({
           {isSearching ? (
             <div className="space-y-2">
               {searchResults.length === 0 ? (
-                <p className="text-sm text-zinc-500">No positions found.</p>
+                <p className="text-sm text-[var(--gg-text-muted)]">No positions found.</p>
               ) : (
                 searchResults.map((position) => (
                   <PositionRow
@@ -258,7 +258,7 @@ export function PositionPicker({
 
                 return (
                   <div key={perspective} className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
                       {perspectiveLabels[perspective]}
                     </p>
                     <div className="space-y-2">
@@ -281,7 +281,7 @@ export function PositionPicker({
           ) : (
             <div className="space-y-2">
               {children.length === 0 ? (
-                <p className="text-sm text-zinc-500">No positions found.</p>
+                <p className="text-sm text-[var(--gg-text-muted)]">No positions found.</p>
               ) : (
                 children.map((position) => (
                   <PositionRow
@@ -302,7 +302,7 @@ export function PositionPicker({
             <button
               type="button"
               onClick={() => setPath(path.slice(0, -1))}
-              className="text-xs font-semibold text-zinc-500"
+              className="text-xs font-semibold text-[var(--gg-text-muted)]"
             >
               Back
             </button>
@@ -311,7 +311,7 @@ export function PositionPicker({
           <button
             type="button"
             onClick={openCustomPosition}
-            className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-600"
+            className="w-full rounded-lg border border-dashed border-[var(--gg-border)] px-3 py-2 text-sm font-semibold text-[var(--gg-text)]"
           >
             Add custom position
           </button>
@@ -324,23 +324,23 @@ export function PositionPicker({
         title="Add custom position"
       >
         <div className="space-y-4">
-          <label className="space-y-2 text-sm font-medium text-zinc-700">
+          <label className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
             Name
             <input
               value={customName}
               onChange={(event) => setCustomName(event.target.value)}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)]"
               placeholder="Octopus guard"
             />
           </label>
-          <label className="space-y-2 text-sm font-medium text-zinc-700">
+          <label className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
             Parent position (optional)
             <select
               value={customParentId ?? ""}
               onChange={(event) =>
                 setCustomParentId(event.target.value || null)
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)]"
             >
               <option value="">None</option>
               {index.positionsInTreeOrder.map((position) => (
@@ -350,7 +350,7 @@ export function PositionPicker({
               ))}
             </select>
           </label>
-          <div className="space-y-2 text-sm font-medium text-zinc-700">
+          <div className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
             Perspective
             <div className="flex flex-wrap gap-3">
               {perspectives.map((item) => (
@@ -360,7 +360,7 @@ export function PositionPicker({
                     name="perspective"
                     checked={customPerspective === item}
                     onChange={() => setCustomPerspective(item)}
-                    className="h-4 w-4"
+                    className="h-4 w-4 accent-[var(--gg-signal)]"
                   />
                   <span className="text-sm capitalize">{item}</span>
                 </label>
@@ -371,14 +371,14 @@ export function PositionPicker({
             <button
               type="button"
               onClick={() => setCustomOpen(false)}
-              className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+              className="rounded-full border border-[var(--gg-border)] px-4 py-2 text-sm font-semibold text-[var(--gg-text-muted)]"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleCustomSave}
-              className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-4 py-2 text-sm font-semibold text-black"
             >
               Add position
             </button>

@@ -14,22 +14,22 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-zinc-900 text-white hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2",
+    "bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] text-black shadow-[0_12px_28px_rgba(46,242,196,0.25)] hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)] focus:ring-offset-2 focus:ring-offset-[var(--gg-bg)]",
   secondary:
-    "border border-zinc-200 text-zinc-600 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2",
+    "border border-[var(--gg-border)] bg-[var(--gg-surface-2)] text-[var(--gg-text)] hover:border-[var(--gg-signal)] hover:text-[var(--gg-signal)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)] focus:ring-offset-2 focus:ring-offset-[var(--gg-bg)]",
   accent:
-    "border border-amber-200 text-amber-900 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2",
+    "border border-[var(--gg-signal)]/40 text-[var(--gg-signal)] hover:bg-[rgba(46,242,196,0.08)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)] focus:ring-offset-2 focus:ring-offset-[var(--gg-bg)]",
   danger:
-    "border border-red-200 text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2",
+    "border border-[rgba(255,91,91,0.4)] text-[var(--gg-danger)] hover:bg-[rgba(255,91,91,0.12)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-danger)] focus:ring-offset-2 focus:ring-offset-[var(--gg-bg)]",
   ghost:
-    "text-zinc-500 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2",
+    "text-[var(--gg-text-muted)] hover:text-[var(--gg-text)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)] focus:ring-offset-2 focus:ring-offset-[var(--gg-bg)]",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: "px-3 py-1 text-xs",
-  md: "px-4 py-2 text-sm",
-  lg: "px-6 py-2.5 text-sm",
-  icon: "h-9 w-9 p-0",
+  sm: "px-3 py-1 text-[0.7rem] uppercase tracking-[0.2em]",
+  md: "px-4 py-2 text-sm tracking-[0.08em]",
+  lg: "px-6 py-3 text-sm tracking-[0.08em]",
+  icon: "h-10 w-10 p-0",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -43,7 +43,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         type="button"
         disabled={disabled}
         className={cn(
-          "inline-flex items-center justify-center rounded-full font-semibold transition",
+          "inline-flex items-center justify-center rounded-lg font-semibold transition",
           "disabled:cursor-not-allowed disabled:opacity-50",
           variantStyles[variant],
           sizeStyles[size],

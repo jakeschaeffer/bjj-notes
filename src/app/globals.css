@@ -1,26 +1,108 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --gg-bg: #0b0f13;
+  --gg-surface-1: #12171c;
+  --gg-surface-2: #181f26;
+  --gg-border: #1f2a33;
+  --gg-text: #e7edf3;
+  --gg-text-muted: #98a3b3;
+  --gg-signal: #2ef2c4;
+  --gg-signal-2: #b6ff3b;
+  --gg-danger: #ff5b5b;
+  --gg-warning: #ffb347;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-background: var(--gg-bg);
+  --color-foreground: var(--gg-text);
+  --font-display: var(--font-gg-display);
+  --font-sans: var(--font-gg-sans);
+  --font-mono: var(--font-gg-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--gg-bg);
+  color: var(--gg-text);
+  font-family: var(--font-gg-sans), ui-sans-serif, system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+  color-scheme: dark;
+}
+
+.font-display {
+  font-family: var(--font-gg-display), var(--font-gg-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.gg-mat-grid {
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(46, 242, 196, 0.16), transparent 52%),
+    radial-gradient(circle at 80% 0%, rgba(182, 255, 59, 0.12), transparent 42%),
+    linear-gradient(180deg, rgba(11, 15, 19, 0.92), rgba(11, 15, 19, 0.98)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04) 0,
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 32px
+    ),
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.03) 0,
+      rgba(255, 255, 255, 0.03) 1px,
+      transparent 1px,
+      transparent 32px
+    );
+  background-size: cover;
+}
+
+.gg-card-signal::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gg-signal), var(--gg-signal-2));
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.gg-glow {
+  box-shadow:
+    0 0 0 1px rgba(46, 242, 196, 0.28),
+    0 0 24px rgba(46, 242, 196, 0.2);
+}
+
+@keyframes gg-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.gg-stagger > * {
+  animation: gg-rise 0.55s ease both;
+}
+
+.gg-stagger > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.gg-stagger > *:nth-child(2) {
+  animation-delay: 60ms;
+}
+.gg-stagger > *:nth-child(3) {
+  animation-delay: 120ms;
+}
+.gg-stagger > *:nth-child(4) {
+  animation-delay: 180ms;
+}
+.gg-stagger > *:nth-child(5) {
+  animation-delay: 240ms;
+}
+.gg-stagger > *:nth-child(6) {
+  animation-delay: 300ms;
 }
