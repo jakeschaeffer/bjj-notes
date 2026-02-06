@@ -12,7 +12,7 @@ export function AccountActions() {
 
   if (loading) {
     return (
-      <div className="text-xs text-zinc-500">Checking session...</div>
+      <div className="text-xs text-[var(--gg-text-muted)]">Checking session...</div>
     );
   }
 
@@ -21,13 +21,13 @@ export function AccountActions() {
       <div className="flex items-center gap-2 text-sm">
         <Link
           href="/login"
-          className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100"
+          className="rounded-full border border-[var(--gg-border)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gg-text)] transition hover:border-[var(--gg-signal)] hover:text-[var(--gg-signal)]"
         >
           Log in
         </Link>
         <Link
           href="/signup"
-          className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white transition hover:bg-zinc-800"
+          className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-black transition hover:brightness-110"
         >
           Sign up
         </Link>
@@ -36,8 +36,8 @@ export function AccountActions() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-600">
-      <Link href="/settings" className="font-semibold text-zinc-700">
+    <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--gg-text-muted)]">
+      <Link href="/settings" className="font-semibold text-[var(--gg-text)]">
         {user.email ?? "Account"}
       </Link>
       <button
@@ -46,7 +46,7 @@ export function AccountActions() {
           await supabase.auth.signOut();
           router.push("/login");
         }}
-        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100"
+        className="rounded-full border border-[var(--gg-border)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gg-text)] transition hover:border-[var(--gg-signal)] hover:text-[var(--gg-signal)]"
       >
         Log out
       </button>

@@ -1313,112 +1313,147 @@ export default function LogSessionPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
+    <div className="gg-stagger space-y-8">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--gg-border)] pb-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.5em] text-[var(--gg-text-muted)]">
             Session Log
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight">Log a session</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-[var(--gg-text)]">
+            Log a session
+          </h1>
         </div>
         <Link
           href="/sessions"
-          className="rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+          className="rounded-full border border-[var(--gg-border)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gg-text-muted)] transition hover:border-[var(--gg-signal)] hover:text-[var(--gg-signal)]"
         >
           View sessions
         </Link>
       </header>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Voice Input Section - Always Prominent */}
-        <Card as="section" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Quick capture</h2>
-              <p className="text-sm text-zinc-500">
-                Record a voice note or paste text to auto-fill your session.
-              </p>
-            </div>
-            {audioStatus === "uploading" ? (
-              <Tag variant="status">Uploading...</Tag>
-            ) : null}
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button
-              variant={isRecording ? "danger" : "secondary"}
-              onClick={isRecording ? stopRecording : startRecording}
-            >
-              {isRecording ? "Stop recording" : "Record voice note"}
-            </Button>
-            {isRecording && (
-              <div className="flex items-center gap-1 px-2">
-                {audioLevels.map((level, i) => (
-                  <div
-                    key={i}
-                    className="w-1 rounded-full bg-red-400 transition-all duration-75"
-                    style={{ height: `${8 + level * 16}px` }}
-                  />
-                ))}
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+          <aside className="space-y-6 lg:sticky lg:top-24 self-start">
+            {/* Voice Input Section - Always Prominent */}
+            <Card as="section" className="space-y-4 gg-card-signal">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.4em] text-[var(--gg-text-muted)]">
+                    Quick capture
+                  </p>
+                  <p className="mt-2 text-sm text-[var(--gg-text)]">
+                    Record a voice note or paste text to auto-fill your session.
+                  </p>
+                </div>
+                {audioStatus === "uploading" ? (
+                  <Tag variant="status">Uploading...</Tag>
+                ) : null}
               </div>
-            )}
-            <Button variant="ghost" onClick={() => setShowExtractionDebug(true)}>
-              Paste transcript
-            </Button>
-          </div>
 
-          {recordingUrl ? (
-            <div className="flex items-center gap-3">
-              <audio controls src={recordingUrl} className="h-8" />
-              <Button
-                variant="accent"
-                onClick={handleAudioUpload}
-                disabled={!audioFile || audioStatus === "uploading"}
-              >
-                Upload & process
-              </Button>
-            </div>
-          ) : null}
+              <div className="flex flex-wrap items-center gap-4">
+                <button
+                  type="button"
+                  onClick={isRecording ? stopRecording : startRecording}
+                  className={`relative flex h-14 w-14 items-center justify-center rounded-full border ${
+                    isRecording
+                      ? "border-[rgba(255,91,91,0.6)] bg-[rgba(255,91,91,0.25)] shadow-[0_0_18px_rgba(255,91,91,0.4)]"
+                      : "border-[rgba(46,242,196,0.5)] bg-[rgba(46,242,196,0.12)] shadow-[0_0_18px_rgba(46,242,196,0.35)]"
+                  }`}
+                  aria-label={isRecording ? "Stop recording" : "Record voice note"}
+                >
+                  <span
+                    className={`h-3 w-3 rounded-full ${
+                      isRecording ? "bg-[var(--gg-danger)]" : "bg-[var(--gg-signal)]"
+                    }`}
+                  />
+                </button>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                    {isRecording ? "Recording" : "Voice capture"}
+                  </p>
+                  <p className="text-sm font-semibold text-[var(--gg-text)]">
+                    {isRecording ? "Tap to stop" : "Tap to record"}
+                  </p>
+                </div>
+                {isRecording && (
+                  <div className="flex items-center gap-1 px-2">
+                    {audioLevels.map((level, i) => (
+                      <div
+                        key={i}
+                        className="w-1 rounded-full bg-[var(--gg-danger)] transition-all duration-75"
+                        style={{ height: `${8 + level * 16}px` }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
 
-          {audioMessage ? (
-            <p
-              className={`text-sm ${
-                audioStatus === "error" ? "text-red-600" : "text-emerald-600"
-              }`}
-            >
-              {audioMessage}
-            </p>
-          ) : null}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowExtractionDebug(true)}
+                >
+                  Paste transcript
+                </Button>
+              </div>
 
-          {extractionLoading ? (
-            <p className="text-sm text-amber-600">Processing transcript...</p>
-          ) : null}
+              {recordingUrl ? (
+                <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--gg-border)] bg-[var(--gg-surface-2)] p-3">
+                  <audio controls src={recordingUrl} className="h-8" />
+                  <Button
+                    variant="accent"
+                    size="sm"
+                    onClick={handleAudioUpload}
+                    disabled={!audioFile || audioStatus === "uploading"}
+                  >
+                    Upload & process
+                  </Button>
+                </div>
+              ) : null}
 
-          {matchedExtraction ? (
-            <ExtractionReviewPanel
-              extraction={matchedExtraction}
-              onApply={applyExtraction}
-              onDismiss={dismissExtraction}
-              onCreateUnmatched={handleCreateUnmatched}
-            />
-          ) : null}
-        </Card>
+              {audioMessage ? (
+                <p
+                  className={`text-sm ${
+                    audioStatus === "error"
+                      ? "text-[var(--gg-danger)]"
+                      : "text-[var(--gg-signal)]"
+                  }`}
+                >
+                  {audioMessage}
+                </p>
+              ) : null}
+
+              {extractionLoading ? (
+                <p className="text-sm text-[var(--gg-warning)]">
+                  Processing transcript...
+                </p>
+              ) : null}
+
+              {matchedExtraction ? (
+                <ExtractionReviewPanel
+                  extraction={matchedExtraction}
+                  onApply={applyExtraction}
+                  onDismiss={dismissExtraction}
+                  onCreateUnmatched={handleCreateUnmatched}
+                />
+              ) : null}
+            </Card>
 
         {/* Post-save summary */}
         {savedSummary && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+          <div className="rounded-2xl border border-[rgba(46,242,196,0.35)] bg-[rgba(18,23,28,0.92)] p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-emerald-700">
-                  Session saved &mdash;{" "}
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                  Session saved —{" "}
                   {new Date(savedSummary.date).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
                     year: "numeric",
                   })}
                 </p>
-                <p className="mt-1 text-sm text-emerald-600">
+                <p className="mt-2 text-sm text-[var(--gg-text)]">
                   {savedSummary.techniques} technique
                   {savedSummary.techniques !== 1 ? "s" : ""}
                   {savedSummary.rounds > 0 &&
@@ -1428,22 +1463,22 @@ export default function LogSessionPage() {
               <button
                 type="button"
                 onClick={() => setSavedSummary(null)}
-                className="text-xs text-emerald-500"
+                className="text-xs text-[var(--gg-text-muted)] hover:text-[var(--gg-signal)]"
               >
                 Dismiss
               </button>
             </div>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               <Link
                 href={`/sessions/${savedSummary.sessionId}`}
-                className="rounded-full border border-emerald-300 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                className="rounded-full border border-[var(--gg-border)] px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gg-text)] transition hover:border-[var(--gg-signal)] hover:text-[var(--gg-signal)]"
               >
                 View session
               </Link>
               <button
                 type="button"
                 onClick={() => setSavedSummary(null)}
-                className="rounded-full border border-emerald-300 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                className="rounded-full border border-[var(--gg-border)] px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gg-text)] transition hover:border-[var(--gg-signal)] hover:text-[var(--gg-signal)]"
               >
                 Log another
               </button>
@@ -1451,22 +1486,47 @@ export default function LogSessionPage() {
           </div>
         )}
 
+        <div className="rounded-2xl border border-[var(--gg-border)] bg-[var(--gg-surface-1)] p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+            Command
+          </p>
+          <div className="mt-4 flex flex-col gap-3">
+            <Button variant="primary" size="lg" type="submit">
+              Save session
+            </Button>
+            {saved ? (
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gg-signal)]">
+                Session saved.
+              </span>
+            ) : null}
+            {formError ? (
+              <span className="text-xs font-semibold text-[var(--gg-danger)]">
+                {formError}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </aside>
+
+      <div className="space-y-6">
         {/* Collapsible Metadata Section */}
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50">
+        <div className="rounded-2xl border border-[var(--gg-border)] bg-[var(--gg-surface-1)]">
           <button
             type="button"
             onClick={() => setShowMetadata(!showMetadata)}
-            className="flex w-full items-center justify-between px-5 py-3 text-left"
+            className="flex w-full items-center justify-between px-5 py-4 text-left"
           >
-            <span className="text-sm font-medium text-zinc-600">
+            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
               Session details: {new Date(date).toLocaleDateString()} &bull;{" "}
               {sessionType.replace(/-/g, " ")} &bull; {giOrNogi.toUpperCase()}
               {durationMinutes ? ` • ${durationMinutes}min` : ""}
             </span>
-            <span className="text-xs text-zinc-400">{showMetadata ? "Hide" : "Edit"}</span>
+            <span className="text-xs text-[var(--gg-text-muted)]">
+              {showMetadata ? "Hide" : "Edit"}
+            </span>
           </button>
           {showMetadata && (
-            <div className="border-t border-zinc-200 px-5 py-4">
+            <div className="border-t border-[var(--gg-border)] px-5 py-4">
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
                 <FormField
                   label="Date"
@@ -1525,8 +1585,10 @@ export default function LogSessionPage() {
             onClick={() => setShowTechniques(!showTechniques)}
             className="flex w-full items-center justify-between"
           >
-            <h2 className="text-lg font-semibold">What did you work on?</h2>
-            <span className="text-xs text-zinc-400">
+            <h2 className="font-display text-xl font-semibold text-[var(--gg-text)]">
+              Technique map
+            </h2>
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gg-text-muted)]">
               {showTechniques ? "Collapse" : "Expand"}
               {!showTechniques && techniqueDrafts.some((d) => d.positionId || d.techniqueId)
                 ? ` (${techniqueDrafts.filter((d) => d.positionId || d.techniqueId).length} items)`
@@ -1541,128 +1603,152 @@ export default function LogSessionPage() {
                 </Button>
               </div>
 
-            {techniqueDrafts.map((draft, indexValue) => {
-              const technique = draft.techniqueId
-                ? index.techniquesById.get(draft.techniqueId) ?? null
-                : null;
-              const position = draft.positionId
-                ? index.positionsById.get(draft.positionId) ?? null
-                : null;
-              const suggestions = buildTagSuggestions(technique, tagSuggestions);
+              {techniqueDrafts.map((draft, indexValue) => {
+                const technique = draft.techniqueId
+                  ? index.techniquesById.get(draft.techniqueId) ?? null
+                  : null;
+                const position = draft.positionId
+                  ? index.positionsById.get(draft.positionId) ?? null
+                  : null;
+                const suggestions = buildTagSuggestions(technique, tagSuggestions);
 
-              return (
-                <Card key={draft.id} variant="nested">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold text-zinc-700">
-                      Technique {indexValue + 1}
-                    </h3>
-                    {techniqueDrafts.length > 1 ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeTechnique(draft.id)}
-                        className="hover:text-red-500"
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2 text-sm font-medium text-zinc-700">
-                      <span>Position</span>
-                      <PositionPicker
-                        value={draft.positionId}
-                        onChange={(positionId) =>
-                          updateTechnique(draft.id, {
-                            positionId,
-                            techniqueId: null,
-                          })
-                        }
-                        recentPositionIds={recentPositionIds}
-                        index={index}
-                        onAddCustomPosition={addCustomPosition}
-                      />
-                      {position && (
-                        <button
-                          type="button"
-                          onClick={() => openTaxonomyCard("position", position.id)}
-                          className="text-xs text-amber-600 hover:underline"
+                return (
+                  <Card key={draft.id} variant="nested" className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                        Technique {indexValue + 1}
+                      </h3>
+                      {techniqueDrafts.length > 1 ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeTechnique(draft.id)}
+                          className="hover:text-[var(--gg-danger)]"
                         >
-                          View {position.name} details
-                        </button>
-                      )}
+                          Remove
+                        </Button>
+                      ) : null}
                     </div>
-                    <div className="space-y-2 text-sm font-medium text-zinc-700">
-                      <span>Technique (optional)</span>
-                      <TechniquePicker
-                        value={draft.techniqueId}
-                        positionId={draft.positionId}
-                        onChange={(techniqueId) =>
-                          updateTechnique(draft.id, { techniqueId })
-                        }
-                        recentTechniqueIds={recentTechniqueIds}
-                        index={index}
-                        onAddCustomTechnique={addCustomTechnique}
-                      />
-                      {technique && (
-                        <button
-                          type="button"
-                          onClick={() => openTaxonomyCard("technique", technique.id)}
-                          className="text-xs text-amber-600 hover:underline"
-                        >
-                          View {technique.name} details
-                        </button>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Notes — always visible, compact */}
-                  <textarea
-                    value={draft.notes}
-                    onChange={(event) =>
-                      updateTechnique(draft.id, {
-                        notes: event.target.value,
-                        notesExpanded: true,
-                      })
-                    }
-                    placeholder="Notes — what did you learn?"
-                    rows={2}
-                    className="mt-3 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm placeholder:text-zinc-400"
-                  />
-
-                  {/* Tags — collapsed, secondary */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateTechnique(draft.id, { expanded: !draft.expanded })
-                    }
-                    className="mt-2 text-xs font-semibold text-zinc-500"
-                  >
-                    {draft.expanded
-                      ? "Hide tags"
-                      : draft.keyDetails.length > 0
-                        ? `Tags (${draft.keyDetails.length})`
-                        : "Add tags"}
-                  </button>
-
-                  {draft.expanded ? (
-                    <div className="mt-2 rounded-xl border border-zinc-100 bg-zinc-50 p-4">
-                      <p className="text-sm font-semibold text-zinc-700">Key details</p>
-                      <div className="mt-2">
-                        <TagPicker
-                          value={draft.keyDetails}
-                          suggestions={suggestions}
-                          onChange={(tags) =>
-                            updateTechnique(draft.id, { keyDetails: tags })
+                    <div className="grid gap-4 lg:grid-cols-[1.1fr_1.1fr_1.4fr_1fr]">
+                      <div className="space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                          Position
+                        </span>
+                        <PositionPicker
+                          value={draft.positionId}
+                          onChange={(positionId) =>
+                            updateTechnique(draft.id, {
+                              positionId,
+                              techniqueId: null,
+                            })
                           }
+                          recentPositionIds={recentPositionIds}
+                          index={index}
+                          onAddCustomPosition={addCustomPosition}
+                        />
+                        {position && (
+                          <button
+                            type="button"
+                            onClick={() => openTaxonomyCard("position", position.id)}
+                            className="text-xs text-[var(--gg-signal)] hover:underline"
+                          >
+                            View {position.name} details
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                          Technique
+                        </span>
+                        <TechniquePicker
+                          value={draft.techniqueId}
+                          positionId={draft.positionId}
+                          onChange={(techniqueId) =>
+                            updateTechnique(draft.id, { techniqueId })
+                          }
+                          recentTechniqueIds={recentTechniqueIds}
+                          index={index}
+                          onAddCustomTechnique={addCustomTechnique}
+                        />
+                        {technique && (
+                          <button
+                            type="button"
+                            onClick={() => openTaxonomyCard("technique", technique.id)}
+                            className="text-xs text-[var(--gg-signal)] hover:underline"
+                          >
+                            View {technique.name} details
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                          Notes
+                        </span>
+                        <textarea
+                          value={draft.notes}
+                          onChange={(event) =>
+                            updateTechnique(draft.id, {
+                              notes: event.target.value,
+                              notesExpanded: true,
+                            })
+                          }
+                          placeholder="Notes — what did you learn?"
+                          rows={3}
+                          className="min-h-[90px] w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)] placeholder:text-[var(--gg-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)]"
                         />
                       </div>
+                      <div className="space-y-2">
+                        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                          Tags
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {draft.keyDetails.length === 0 ? (
+                            <span className="text-xs text-[var(--gg-text-muted)]">
+                              No tags yet.
+                            </span>
+                          ) : (
+                            draft.keyDetails.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded-full border border-[rgba(46,242,196,0.35)] bg-[rgba(46,242,196,0.12)] px-2 py-0.5 text-xs font-semibold text-[var(--gg-signal)]"
+                              >
+                                {tag}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateTechnique(draft.id, { expanded: !draft.expanded })
+                          }
+                          className="text-xs font-semibold text-[var(--gg-text-muted)]"
+                        >
+                          {draft.expanded ? "Hide tags" : "Add tags"}
+                        </button>
+                      </div>
                     </div>
-                  ) : null}
-                </Card>
-              );
-            })}
+
+                    {draft.expanded ? (
+                      <div className="rounded-xl border border-[var(--gg-border)] bg-[var(--gg-surface-2)] p-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                          Key details
+                        </p>
+                        <div className="mt-2">
+                          <TagPicker
+                            value={draft.keyDetails}
+                            suggestions={suggestions}
+                            onChange={(tags) =>
+                              updateTechnique(draft.id, { keyDetails: tags })
+                            }
+                          />
+                        </div>
+                      </div>
+                    ) : null}
+                  </Card>
+                );
+              })}
             </div>
           )}
         </section>
@@ -1674,8 +1760,10 @@ export default function LogSessionPage() {
             onClick={() => setShowSparring(!showSparring)}
             className="flex w-full items-center justify-between"
           >
-            <h2 className="text-lg font-semibold">How did sparring go?</h2>
-            <span className="text-xs text-zinc-400">
+            <h2 className="font-display text-xl font-semibold text-[var(--gg-text)]">
+              Sparring flow
+            </h2>
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gg-text-muted)]">
               {showSparring ? "Collapse" : "Expand"}
               {!showSparring && roundDrafts.some((r) => r.partnerName.trim() || r.submissionsForCount > 0 || r.submissionsAgainstCount > 0)
                 ? ` (${roundDrafts.filter((r) => r.partnerName.trim() || r.submissionsForCount > 0 || r.submissionsAgainstCount > 0).length} rounds)`
@@ -1689,7 +1777,7 @@ export default function LogSessionPage() {
                   <button
                     type="button"
                     onClick={() => setCompactRounds(!compactRounds)}
-                    className="text-xs font-semibold text-zinc-500"
+                    className="text-xs font-semibold text-[var(--gg-text-muted)]"
                   >
                     {compactRounds ? "Expand all" : "Compact view"}
                   </button>
@@ -1734,9 +1822,9 @@ export default function LogSessionPage() {
                           return next;
                         })
                       }
-                      className="flex w-full items-center gap-3 rounded-xl border border-zinc-100 bg-white px-4 py-3 text-left text-sm transition hover:border-zinc-200 hover:shadow-sm"
+                      className="flex w-full items-center gap-3 rounded-xl border border-[var(--gg-border)] bg-[var(--gg-surface-1)] px-4 py-3 text-left text-sm transition hover:border-[var(--gg-signal)]"
                     >
-                      <span className="w-8 shrink-0 font-semibold text-zinc-400">
+                      <span className="w-8 shrink-0 font-semibold text-[var(--gg-text-muted)]">
                         R{roundIndex + 1}
                       </span>
                       <span className="flex min-w-0 flex-1 items-center gap-2">
@@ -1745,15 +1833,15 @@ export default function LogSessionPage() {
                             className={`h-2.5 w-2.5 shrink-0 rounded-full border ${belt.dotClass}`}
                           />
                         )}
-                        <span className="truncate font-medium text-zinc-700">
+                        <span className="truncate font-medium text-[var(--gg-text)]">
                           {round.partnerName.trim() || "Partner unknown"}
                         </span>
                       </span>
-                      <span className="shrink-0 font-semibold text-zinc-600">
+                      <span className="shrink-0 font-mono text-sm font-semibold text-[var(--gg-text)]">
                         +{round.submissionsForCount} / -{round.submissionsAgainstCount}
                       </span>
                       {dominantLabels && (
-                        <span className="hidden truncate text-xs text-zinc-400 sm:block">
+                        <span className="hidden truncate text-xs text-[var(--gg-text-muted)] sm:block">
                           {dominantLabels}
                         </span>
                       )}
@@ -1762,9 +1850,9 @@ export default function LogSessionPage() {
                 }
 
                 return (
-                  <Card key={round.id} variant="nested">
+                  <Card key={round.id} variant="nested" className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold text-zinc-700">
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
                         Round {roundIndex + 1}
                       </h3>
                       <div className="flex items-center gap-2">
@@ -1778,7 +1866,7 @@ export default function LogSessionPage() {
                                 return next;
                               })
                             }
-                            className="text-xs font-semibold text-zinc-500"
+                            className="text-xs font-semibold text-[var(--gg-text-muted)]"
                           >
                             Compact
                           </button>
@@ -1787,7 +1875,7 @@ export default function LogSessionPage() {
                           <button
                             type="button"
                             onClick={() => removeRound(round.id)}
-                            className="text-xs font-semibold text-zinc-500 transition hover:text-red-500"
+                            className="text-xs font-semibold text-[var(--gg-text-muted)] transition hover:text-[var(--gg-danger)]"
                           >
                             Remove
                           </button>
@@ -1795,9 +1883,11 @@ export default function LogSessionPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2 text-sm font-medium text-zinc-700">
-                        <span>Partner</span>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
+                        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                          Partner
+                        </span>
                         <div className="relative">
                           <input
                             value={round.partnerName}
@@ -1805,10 +1895,10 @@ export default function LogSessionPage() {
                               updateRound(round.id, { partnerName: event.target.value })
                             }
                             placeholder="Name or initials"
-                            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                            className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)] placeholder:text-[var(--gg-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)]"
                           />
                           {partnerMatches.length > 0 ? (
-                            <div className="absolute z-10 mt-2 w-full rounded-lg border border-zinc-200 bg-white shadow-sm">
+                            <div className="absolute z-10 mt-2 w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-1)] shadow-[0_12px_24px_rgba(0,0,0,0.3)]">
                               {partnerMatches.map((name) => (
                                 <button
                                   key={name}
@@ -1816,7 +1906,7 @@ export default function LogSessionPage() {
                                   onClick={() =>
                                     updateRound(round.id, { partnerName: name })
                                   }
-                                  className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50"
+                                  className="block w-full px-3 py-2 text-left text-sm text-[var(--gg-text)] hover:bg-[var(--gg-surface-2)]"
                                 >
                                   {name}
                                 </button>
@@ -1825,27 +1915,30 @@ export default function LogSessionPage() {
                           ) : null}
                         </div>
                       </div>
-                      <div className="space-y-2 text-sm font-medium text-zinc-700">
-                        <span>Belt</span>
+                      <div className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
+                        <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                          Belt
+                        </span>
                         <button
                           type="button"
                           onClick={() => setBeltPickerRoundId(round.id)}
-                          className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm"
+                          className="flex w-full items-center justify-between rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
                         >
                           <span className="flex items-center gap-2">
                             <span
                               className={`h-2.5 w-2.5 rounded-full border ${
-                                belt?.dotClass ?? "border-zinc-300 bg-zinc-100"
+                                belt?.dotClass ??
+                                "border-[var(--gg-border)] bg-[var(--gg-surface-2)]"
                               }`}
                             />
                             <span>{belt?.label ?? "Select belt"}</span>
                           </span>
-                          <span className="text-xs text-zinc-400">v</span>
+                          <span className="text-xs text-[var(--gg-text-muted)]">v</span>
                         </button>
                       </div>
                     </div>
 
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-2">
                       {([
                         { label: "I submitted", side: "for" as const },
                         { label: "I got caught", side: "against" as const },
@@ -1859,26 +1952,26 @@ export default function LogSessionPage() {
                         return (
                           <div
                             key={label}
-                            className="rounded-xl border border-zinc-100 bg-white p-4"
+                            className="rounded-xl border border-[var(--gg-border)] bg-[var(--gg-surface-2)] p-4"
                           >
-                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
                               {label}
                             </p>
                             <div className="mt-3 flex items-center gap-3">
                               <button
                                 type="button"
                                 onClick={() => decrementSubmissionCount(round.id, side)}
-                                className="h-9 w-9 rounded-full border border-zinc-200 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
+                                className="h-9 w-9 rounded-full border border-[var(--gg-border)] text-sm font-semibold text-[var(--gg-text)] transition hover:border-[var(--gg-signal)]"
                               >
                                 -
                               </button>
-                              <span className="text-lg font-semibold text-zinc-800">
+                              <span className="font-mono text-2xl font-semibold text-[var(--gg-text)]">
                                 {submissionCount}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => incrementSubmissionCount(round.id, side)}
-                                className="h-9 w-9 rounded-full border border-zinc-200 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
+                                className="h-9 w-9 rounded-full border border-[var(--gg-border)] text-sm font-semibold text-[var(--gg-text)] transition hover:border-[var(--gg-signal)]"
                               >
                                 +
                               </button>
@@ -1900,21 +1993,21 @@ export default function LogSessionPage() {
                                   return (
                                     <span
                                       key={submission.id}
-                                      className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+                                      className="flex items-center gap-2 rounded-full border border-[rgba(46,242,196,0.35)] bg-[rgba(46,242,196,0.12)] px-3 py-1 text-xs font-semibold text-[var(--gg-signal)]"
                                     >
                                       <ClickableTaxonomy
                                         type="technique"
                                         id={submission.techniqueId}
                                         name={technique?.name ?? "Unknown"}
                                         onClick={openTaxonomyCard}
-                                        className="text-amber-700 no-underline hover:underline"
+                                        className="text-[var(--gg-signal)] no-underline hover:underline"
                                       />
                                       <button
                                         type="button"
                                         onClick={() =>
                                           removeSubmission(round.id, side, submission.id)
                                         }
-                                        className="text-xs text-amber-600 hover:text-amber-800"
+                                        className="text-xs text-[var(--gg-signal)]/70 hover:text-[var(--gg-signal)]"
                                       >
                                         x
                                       </button>
@@ -1927,7 +2020,7 @@ export default function LogSessionPage() {
                             <button
                               type="button"
                               onClick={() => openSubmissionPicker(round.id, side)}
-                              className="mt-3 text-xs font-semibold text-zinc-500"
+                              className="mt-3 text-xs font-semibold text-[var(--gg-text-muted)]"
                             >
                               Add submission detail
                             </button>
@@ -1943,17 +2036,19 @@ export default function LogSessionPage() {
                           notesExpanded: !round.notesExpanded,
                         })
                       }
-                      className="mt-4 text-xs font-semibold text-zinc-500"
+                      className="text-xs font-semibold text-[var(--gg-text-muted)]"
                     >
-                      {round.notesExpanded ? "Collapse position notes" : "Add position notes"}
+                      {round.notesExpanded ? "Hide mat notes" : "Add mat notes"}
                     </button>
 
                     {round.notesExpanded ? (
-                      <div className="mt-4 space-y-4 rounded-xl border border-zinc-100 bg-white p-4">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-2 text-sm font-medium text-zinc-700">
+                      <div className="space-y-4 rounded-xl border border-[var(--gg-border)] bg-[var(--gg-surface-2)] p-4">
+                        <div className="space-y-3">
+                          <div className="rounded-lg border border-[rgba(46,242,196,0.35)] bg-[rgba(46,242,196,0.08)] p-3">
                             <div className="flex items-center justify-between">
-                              <span>Where I dominated</span>
+                              <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-signal)]">
+                                Dominant lane
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1963,18 +2058,18 @@ export default function LogSessionPage() {
                                     type: "dominant",
                                   });
                                 }}
-                                className="text-xs font-semibold text-amber-600"
+                                className="text-xs font-semibold text-[var(--gg-signal)]"
                               >
                                 Add position
                               </button>
                             </div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="mt-2 flex flex-wrap gap-2">
                               {round.dominantPositions.map((positionId) => {
                                 const pos = index.positionsById.get(positionId);
                                 return (
                                   <span
                                     key={positionId}
-                                    className="flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600"
+                                    className="flex items-center gap-2 rounded-full border border-[rgba(46,242,196,0.35)] bg-[rgba(46,242,196,0.16)] px-3 py-1 text-xs font-semibold text-[var(--gg-signal)]"
                                   >
                                     {pos ? (
                                       <ClickableTaxonomy
@@ -1982,7 +2077,7 @@ export default function LogSessionPage() {
                                         id={positionId}
                                         name={pos.name}
                                         onClick={openTaxonomyCard}
-                                        className="text-zinc-600 no-underline hover:underline"
+                                        className="text-[var(--gg-signal)] no-underline hover:underline"
                                       />
                                     ) : (
                                       positionId
@@ -1996,7 +2091,7 @@ export default function LogSessionPage() {
                                           positionId,
                                         )
                                       }
-                                      className="text-xs text-zinc-500 hover:text-zinc-700"
+                                      className="text-xs text-[var(--gg-signal)]/70 hover:text-[var(--gg-signal)]"
                                     >
                                       x
                                     </button>
@@ -2004,13 +2099,17 @@ export default function LogSessionPage() {
                                 );
                               })}
                               {round.dominantPositions.length === 0 ? (
-                                <span className="text-xs text-zinc-400">None yet.</span>
+                                <span className="text-xs text-[var(--gg-text-muted)]">
+                                  None yet.
+                                </span>
                               ) : null}
                             </div>
                           </div>
-                          <div className="space-y-2 text-sm font-medium text-zinc-700">
+                          <div className="rounded-lg border border-[rgba(255,91,91,0.35)] bg-[rgba(255,91,91,0.08)] p-3">
                             <div className="flex items-center justify-between">
-                              <span>Where I got stuck</span>
+                              <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-danger)]">
+                                Stuck lane
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2020,18 +2119,18 @@ export default function LogSessionPage() {
                                     type: "stuck",
                                   });
                                 }}
-                                className="text-xs font-semibold text-amber-600"
+                                className="text-xs font-semibold text-[var(--gg-danger)]"
                               >
                                 Add position
                               </button>
                             </div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="mt-2 flex flex-wrap gap-2">
                               {round.stuckPositions.map((positionId) => {
                                 const pos = index.positionsById.get(positionId);
                                 return (
                                   <span
                                     key={positionId}
-                                    className="flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600"
+                                    className="flex items-center gap-2 rounded-full border border-[rgba(255,91,91,0.35)] bg-[rgba(255,91,91,0.16)] px-3 py-1 text-xs font-semibold text-[var(--gg-danger)]"
                                   >
                                     {pos ? (
                                       <ClickableTaxonomy
@@ -2039,7 +2138,7 @@ export default function LogSessionPage() {
                                         id={positionId}
                                         name={pos.name}
                                         onClick={openTaxonomyCard}
-                                        className="text-zinc-600 no-underline hover:underline"
+                                        className="text-[var(--gg-danger)] no-underline hover:underline"
                                       />
                                     ) : (
                                       positionId
@@ -2049,7 +2148,7 @@ export default function LogSessionPage() {
                                       onClick={() =>
                                         toggleRoundPosition(round.id, "stuck", positionId)
                                       }
-                                      className="text-xs text-zinc-500 hover:text-zinc-700"
+                                      className="text-xs text-[var(--gg-danger)]/70 hover:text-[var(--gg-danger)]"
                                     >
                                       x
                                     </button>
@@ -2057,20 +2156,24 @@ export default function LogSessionPage() {
                                 );
                               })}
                               {round.stuckPositions.length === 0 ? (
-                                <span className="text-xs text-zinc-400">None yet.</span>
+                                <span className="text-xs text-[var(--gg-text-muted)]">
+                                  None yet.
+                                </span>
                               ) : null}
                             </div>
                           </div>
                         </div>
-                        <label className="space-y-2 text-sm font-medium text-zinc-700">
-                          Round notes
+                        <label className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
+                          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
+                            Round notes
+                          </span>
                           <textarea
                             value={round.notes}
                             onChange={(event) =>
                               updateRound(round.id, { notes: event.target.value })
                             }
                             placeholder="What worked or failed?"
-                            className="min-h-[90px] w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                            className="min-h-[100px] w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-1)] px-3 py-2 text-sm text-[var(--gg-text)] placeholder:text-[var(--gg-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)]"
                           />
                         </label>
                       </div>
@@ -2084,24 +2187,24 @@ export default function LogSessionPage() {
         </section>
 
         {/* Notes Section - Collapsed by default */}
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50">
+        <div className="rounded-2xl border border-[var(--gg-border)] bg-[var(--gg-surface-1)]">
           <button
             type="button"
             onClick={() => setNotes(notes ? notes : " ")}
-            className="flex w-full items-center justify-between px-5 py-3 text-left"
+            className="flex w-full items-center justify-between px-5 py-4 text-left"
           >
-            <span className="text-sm font-medium text-zinc-600">
+            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
               Session notes & reflections
               {notes.trim() || insights.trim() || goalsForNext.trim()
                 ? " (has content)"
                 : ""}
             </span>
-            <span className="text-xs text-zinc-400">
+            <span className="text-xs text-[var(--gg-text-muted)]">
               {notes.trim() || insights.trim() || goalsForNext.trim() ? "Edit" : "Add"}
             </span>
           </button>
           {(notes.trim() || insights.trim() || goalsForNext.trim() || notes === " ") && (
-            <div className="border-t border-zinc-200 px-5 py-4 space-y-4">
+            <div className="border-t border-[var(--gg-border)] px-5 py-4 space-y-4">
               <FormField
                 as="textarea"
                 label="Session notes"
@@ -2127,6 +2230,9 @@ export default function LogSessionPage() {
           )}
         </div>
 
+        </div>
+        </div>
+
         {/* Modals */}
         <Modal
           open={Boolean(beltPickerRoundId)}
@@ -2144,7 +2250,7 @@ export default function LogSessionPage() {
                   }
                   setBeltPickerRoundId(null);
                 }}
-                className="flex w-full items-center gap-3 rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                className="flex w-full items-center gap-3 rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
               >
                 <span
                   className={`h-3 w-3 rounded-full border ${option.dotClass}`}
@@ -2160,7 +2266,7 @@ export default function LogSessionPage() {
                 }
                 setBeltPickerRoundId(null);
               }}
-              className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-500"
+              className="w-full rounded-lg border border-dashed border-[var(--gg-border)] px-3 py-2 text-sm font-semibold text-[var(--gg-text-muted)]"
             >
               Clear selection
             </button>
@@ -2180,13 +2286,13 @@ export default function LogSessionPage() {
               value={submissionSearch}
               onChange={(event) => setSubmissionSearch(event.target.value)}
               placeholder="Search submissions"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)] placeholder:text-[var(--gg-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)]"
             />
 
             {submissionSearch.trim() ? (
               <div className="space-y-2">
                 {submissionResults.length === 0 ? (
-                  <p className="text-sm text-zinc-500">No submissions found.</p>
+                  <p className="text-sm text-[var(--gg-text-muted)]">No submissions found.</p>
                 ) : (
                   submissionResults.map((technique) => (
                     <button
@@ -2200,7 +2306,7 @@ export default function LogSessionPage() {
                           technique.id,
                         )
                       }
-                      className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                      className="flex w-full items-center justify-between rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
                     >
                       <span>{technique.name}</span>
                     </button>
@@ -2211,7 +2317,7 @@ export default function LogSessionPage() {
               <div className="space-y-4">
                 {commonSubmissions.length > 0 ? (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
                       Common
                     </p>
                     {commonSubmissions.map((technique) => (
@@ -2226,7 +2332,7 @@ export default function LogSessionPage() {
                             technique.id,
                           )
                         }
-                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                        className="flex w-full items-center justify-between rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
                       >
                         <span>{technique.name}</span>
                       </button>
@@ -2236,7 +2342,7 @@ export default function LogSessionPage() {
 
                 {recentSubmissions.length > 0 ? (
                   <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
                       Recent
                     </p>
                     {recentSubmissions.map((technique) => (
@@ -2251,7 +2357,7 @@ export default function LogSessionPage() {
                             technique.id,
                           )
                         }
-                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                        className="flex w-full items-center justify-between rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
                       >
                         <span>{technique.name}</span>
                       </button>
@@ -2260,7 +2366,7 @@ export default function LogSessionPage() {
                 ) : null}
 
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
                     All submissions
                   </p>
                   {submissionList.map((technique) => (
@@ -2275,7 +2381,7 @@ export default function LogSessionPage() {
                           technique.id,
                         )
                       }
-                      className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                      className="flex w-full items-center justify-between rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
                     >
                       <span>{technique.name}</span>
                     </button>
@@ -2293,7 +2399,7 @@ export default function LogSessionPage() {
                     submissionPicker.side,
                   )
                 }
-                className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-600"
+                className="w-full rounded-lg border border-dashed border-[var(--gg-border)] px-3 py-2 text-sm font-semibold text-[var(--gg-text)]"
               >
                 Add custom submission
               </button>
@@ -2307,21 +2413,21 @@ export default function LogSessionPage() {
           title="Add custom submission"
         >
           <div className="space-y-4">
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
+            <label className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
               Name
               <input
                 value={customSubmissionName}
                 onChange={(event) => setCustomSubmissionName(event.target.value)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)]"
                 placeholder="Armbar"
               />
             </label>
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
+            <label className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
               Starting position
               <select
                 value={customSubmissionPositionId}
                 onChange={(event) => setCustomSubmissionPositionId(event.target.value)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)]"
               >
                 <option value="">Select position</option>
                 {index.positionsInTreeOrder.map((position) => (
@@ -2335,14 +2441,14 @@ export default function LogSessionPage() {
               <button
                 type="button"
                 onClick={() => setCustomSubmissionTarget(null)}
-                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+                className="rounded-full border border-[var(--gg-border)] px-4 py-2 text-sm font-semibold text-[var(--gg-text-muted)]"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleCustomSubmissionSave}
-                className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+                className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-4 py-2 text-sm font-semibold text-black"
               >
                 Add submission
               </button>
@@ -2365,7 +2471,7 @@ export default function LogSessionPage() {
                 key={positionId}
                 type="button"
                 onClick={() => handleAmbiguousPositionSelect(positionId)}
-                className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                className="flex w-full items-center justify-between rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
               >
                 <span>{index.positionsById.get(positionId)?.name ?? positionId}</span>
               </button>
@@ -2373,7 +2479,7 @@ export default function LogSessionPage() {
             <button
               type="button"
               onClick={() => handleAmbiguousPositionSelect(null)}
-              className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-500"
+              className="w-full rounded-lg border border-dashed border-[var(--gg-border)] px-3 py-2 text-sm font-semibold text-[var(--gg-text-muted)]"
             >
               Skip position
             </button>
@@ -2397,14 +2503,14 @@ export default function LogSessionPage() {
               value={positionSearch}
               onChange={(event) => setPositionSearch(event.target.value)}
               placeholder="Search positions"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)] placeholder:text-[var(--gg-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)]"
             />
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]">
               {activePositions.length} selected
             </p>
             <div className="space-y-2">
               {filteredPositionOptions.length === 0 ? (
-                <p className="text-sm text-zinc-500">No positions found.</p>
+                <p className="text-sm text-[var(--gg-text-muted)]">No positions found.</p>
               ) : (
                 filteredPositionOptions.map((option) => {
                 const checked = activePositions.includes(option.id);
@@ -2420,13 +2526,13 @@ export default function LogSessionPage() {
                         option.id,
                       )
                     }
-                    className="flex w-full items-center gap-3 rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                    className="flex w-full items-center gap-3 rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-left text-sm text-[var(--gg-text)]"
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       readOnly
-                      className="h-4 w-4"
+                      className="h-4 w-4 accent-[var(--gg-signal)]"
                     />
                     <span>{option.label}</span>
                   </button>
@@ -2440,7 +2546,7 @@ export default function LogSessionPage() {
                 setPositionPickerTarget(null);
                 setPositionSearch("");
               }}
-              className="w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+              className="w-full rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-4 py-2 text-sm font-semibold text-black"
             >
               Done
             </button>
@@ -2458,22 +2564,22 @@ export default function LogSessionPage() {
         >
           {createUnmatchedItem?.type === "position" ? (
             <div className="space-y-4">
-              <p className="text-sm text-zinc-600">
+              <p className="text-sm text-[var(--gg-text-muted)]">
                 Create a custom position for &quot;{createUnmatchedItem.name}&quot;
               </p>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
+              <label className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
                 Name
                 <input
                   defaultValue={createUnmatchedItem.name}
                   id="unmatched-position-name"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)]"
                 />
               </label>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
+              <label className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
                 Parent position (optional)
                 <select
                   id="unmatched-position-parent"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)]"
                   defaultValue=""
                 >
                   <option value="">None (root position)</option>
@@ -2488,7 +2594,7 @@ export default function LogSessionPage() {
                 <button
                   type="button"
                   onClick={() => setCreateUnmatchedItem(null)}
-                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+                  className="rounded-full border border-[var(--gg-border)] px-4 py-2 text-sm font-semibold text-[var(--gg-text-muted)]"
                 >
                   Cancel
                 </button>
@@ -2504,7 +2610,7 @@ export default function LogSessionPage() {
                       handleUnmatchedCreated();
                     }
                   }}
-                  className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+                  className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-4 py-2 text-sm font-semibold text-black"
                 >
                   Create position
                 </button>
@@ -2512,25 +2618,25 @@ export default function LogSessionPage() {
             </div>
           ) : createUnmatchedItem?.type === "technique" ? (
             <div className="space-y-4">
-              <p className="text-sm text-zinc-600">
+              <p className="text-sm text-[var(--gg-text-muted)]">
                 Create a custom technique for &quot;{createUnmatchedItem.name}&quot;
                 {createUnmatchedItem.context?.positionName && (
                   <> from {createUnmatchedItem.context.positionName}</>
                 )}
               </p>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
+              <label className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
                 Name
                 <input
                   defaultValue={createUnmatchedItem.name}
                   id="unmatched-technique-name"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)]"
                 />
               </label>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
+              <label className="space-y-2 text-sm font-medium text-[var(--gg-text)]">
                 Starting position
                 <select
                   id="unmatched-technique-position"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                  className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)]"
                   defaultValue={createUnmatchedItem.context?.positionId ?? ""}
                 >
                   <option value="">Select position</option>
@@ -2545,7 +2651,7 @@ export default function LogSessionPage() {
                 <button
                   type="button"
                   onClick={() => setCreateUnmatchedItem(null)}
-                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+                  className="rounded-full border border-[var(--gg-border)] px-4 py-2 text-sm font-semibold text-[var(--gg-text-muted)]"
                 >
                   Cancel
                 </button>
@@ -2561,7 +2667,7 @@ export default function LogSessionPage() {
                       handleUnmatchedCreated();
                     }
                   }}
-                  className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+                  className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-4 py-2 text-sm font-semibold text-black"
                 >
                   Create technique
                 </button>
@@ -2577,14 +2683,14 @@ export default function LogSessionPage() {
         >
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-zinc-600 mb-2">
+              <p className="text-sm text-[var(--gg-text-muted)] mb-2">
                 Paste your session notes or transcript to auto-fill the form.
               </p>
               <textarea
                 value={debugTranscriptInput}
                 onChange={(event) => setDebugTranscriptInput(event.target.value)}
                 rows={6}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                className="w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)] placeholder:text-[var(--gg-text-muted)]"
                 placeholder="Today we worked on closed guard, arm bar from guard..."
               />
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -2592,14 +2698,16 @@ export default function LogSessionPage() {
                   type="button"
                   onClick={handleTranscriptTextExtraction}
                   disabled={debugStatus === "running"}
-                  className="rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-200"
+                  className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-4 py-2 text-sm font-semibold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {debugStatus === "running" ? "Processing..." : "Extract session data"}
                 </button>
                 {debugMessage ? (
                   <span
                     className={`text-xs ${
-                      debugStatus === "error" ? "text-red-600" : "text-emerald-600"
+                      debugStatus === "error"
+                        ? "text-[var(--gg-danger)]"
+                        : "text-[var(--gg-signal)]"
                     }`}
                   >
                     {debugMessage}
@@ -2612,20 +2720,20 @@ export default function LogSessionPage() {
               <>
                 {transcriptText && (
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--gg-text-muted)]">
                       Transcript
                     </p>
-                    <pre className="mt-2 max-h-32 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
+                    <pre className="mt-2 max-h-32 overflow-auto rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] p-3 text-xs text-[var(--gg-text)]">
                       {transcriptText}
                     </pre>
                   </div>
                 )}
                 {rawExtraction && (
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--gg-text-muted)]">
                       Extracted Data
                     </p>
-                    <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
+                    <pre className="mt-2 max-h-48 overflow-auto rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] p-3 text-xs text-[var(--gg-text)]">
                       {JSON.stringify(rawExtraction, null, 2)}
                     </pre>
                   </div>
@@ -2636,7 +2744,7 @@ export default function LogSessionPage() {
             <button
               type="button"
               onClick={() => setShowExtractionDebug(false)}
-              className="w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+              className="w-full rounded-full border border-[var(--gg-border)] px-4 py-2 text-sm font-semibold text-[var(--gg-text)]"
             >
               Close
             </button>
@@ -2653,20 +2761,6 @@ export default function LogSessionPage() {
           onNavigate={(type, id) => setTaxonomyCard({ type, id })}
         />
 
-        {formError ? (
-          <p className="text-sm font-semibold text-red-500">{formError}</p>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-4">
-          <Button variant="primary" size="lg" type="submit">
-            Save session
-          </Button>
-          {saved ? (
-            <span className="text-sm font-semibold text-amber-600">
-              Session saved.
-            </span>
-          ) : null}
-        </div>
       </form>
     </div>
   );

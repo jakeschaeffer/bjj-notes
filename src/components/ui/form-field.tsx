@@ -4,9 +4,10 @@ import { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, Reac
 
 import { cn } from "@/lib/utils";
 
-const labelStyles = "block space-y-2 text-sm font-medium text-zinc-700";
+const labelStyles =
+  "block space-y-2 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[var(--gg-text-muted)]";
 const inputStyles =
-  "w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-1";
+  "w-full rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)] placeholder:text-[var(--gg-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--gg-signal)] focus:ring-offset-2 focus:ring-offset-[var(--gg-bg)]";
 
 type BaseFieldProps = {
   label: string;

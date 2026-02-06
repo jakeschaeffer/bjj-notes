@@ -14,11 +14,11 @@ type TagProps = Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 
 const variantStyles: Record<TagVariant, string> = {
   amber:
-    "border border-amber-200 bg-amber-50 text-amber-700",
+    "border border-[rgba(182,255,59,0.45)] bg-[rgba(182,255,59,0.14)] text-[var(--gg-signal-2)]",
   zinc:
-    "border border-zinc-200 bg-zinc-50 text-zinc-600",
+    "border border-[var(--gg-border)] bg-[var(--gg-surface-2)] text-[var(--gg-text-muted)]",
   status:
-    "bg-amber-100 text-amber-900",
+    "bg-[rgba(46,242,196,0.2)] text-[var(--gg-signal)]",
 };
 
 export function Tag({

@@ -22,7 +22,7 @@ export function Modal({ open, title, onClose, children, className }: ModalProps)
       <button
         type="button"
         aria-label="Close modal"
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         onClick={(event) => {
           event.stopPropagation();
           onClose();
@@ -30,7 +30,7 @@ export function Modal({ open, title, onClose, children, className }: ModalProps)
       />
       <div
         className={cn(
-          "relative w-full max-w-lg rounded-t-2xl bg-white p-5 shadow-lg sm:rounded-2xl",
+          "relative w-full max-w-lg rounded-t-2xl border border-[var(--gg-border)] bg-[var(--gg-surface-1)] p-5 text-[var(--gg-text)] shadow-[0_24px_60px_rgba(0,0,0,0.45)] sm:rounded-2xl",
           "max-h-[85vh] overflow-y-auto",
           className,
         )}
@@ -41,7 +41,7 @@ export function Modal({ open, title, onClose, children, className }: ModalProps)
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100"
+            className="rounded-full border border-[var(--gg-border)] px-3 py-1 text-xs font-semibold text-[var(--gg-text-muted)] transition hover:border-[var(--gg-signal)] hover:text-[var(--gg-text)]"
           >
             Close
           </button>

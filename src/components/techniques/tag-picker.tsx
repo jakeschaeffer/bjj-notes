@@ -49,14 +49,14 @@ export function TagPicker({ value, suggestions, onChange }: TagPickerProps) {
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
         {selected.length === 0 ? (
-          <span className="text-sm text-zinc-400">No tags yet.</span>
+          <span className="text-sm text-[var(--gg-text-muted)]">No tags yet.</span>
         ) : (
           selected.map((tag) => (
             <button
               key={tag}
               type="button"
               onClick={() => removeTag(tag)}
-              className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+              className="rounded-full border border-[rgba(46,242,196,0.4)] bg-[rgba(46,242,196,0.12)] px-3 py-1 text-xs font-semibold text-[var(--gg-signal)]"
             >
               {tag} x
             </button>
@@ -71,7 +71,7 @@ export function TagPicker({ value, suggestions, onChange }: TagPickerProps) {
               key={tag}
               type="button"
               onClick={() => addTag(tag)}
-              className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600"
+              className="rounded-full border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-1 text-xs font-semibold text-[var(--gg-text)]"
             >
               {tag}
             </button>
@@ -84,7 +84,7 @@ export function TagPicker({ value, suggestions, onChange }: TagPickerProps) {
           <input
             value={customValue}
             onChange={(event) => setCustomValue(event.target.value)}
-            className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            className="flex-1 rounded-lg border border-[var(--gg-border)] bg-[var(--gg-surface-2)] px-3 py-2 text-sm text-[var(--gg-text)]"
             placeholder="Add custom tag"
           />
           <button
@@ -94,7 +94,7 @@ export function TagPicker({ value, suggestions, onChange }: TagPickerProps) {
               setCustomValue("");
               setCustomOpen(false);
             }}
-            className="rounded-full bg-zinc-900 px-4 py-2 text-xs font-semibold text-white"
+            className="rounded-full bg-[linear-gradient(135deg,var(--gg-signal),var(--gg-signal-2))] px-4 py-2 text-xs font-semibold text-black"
           >
             Add
           </button>
@@ -103,7 +103,7 @@ export function TagPicker({ value, suggestions, onChange }: TagPickerProps) {
         <button
           type="button"
           onClick={() => setCustomOpen(true)}
-          className="text-xs font-semibold text-zinc-500"
+          className="text-xs font-semibold text-[var(--gg-text-muted)]"
         >
           Add custom tag
         </button>
