@@ -46,8 +46,6 @@ const sessionTypes = [
   "drilling-only",
 ] as const;
 
-type SessionMode = "lesson" | "sparring";
-
 type DraftTechnique = {
   id: string;
   positionId: string | null;
@@ -209,9 +207,24 @@ export default function LogSessionPage() {
     recordPartnerNames,
   } = useUserTaxonomy();
 
-  // Primary mode selection
-  const [mode, setMode] = useState<SessionMode>("lesson");
+  // Section visibility
+  const [showTechniques, setShowTechniques] = useState(true);
+  const [showSparring, setShowSparring] = useState(true);
   const [showMetadata, setShowMetadata] = useState(false);
+  const [compactRounds, setCompactRounds] = useState(true);
+  const [expandedRoundIds, setExpandedRoundIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // Post-save summary
+  const [savedSummary, setSavedSummary] = useState<{
+    date: string;
+    techniques: number;
+    rounds: number;
+    subsFor: number;
+    subsAgainst: number;
+    sessionId: string;
+  } | null>(null);
 
   // Taxonomy card state
   const [taxonomyCard, setTaxonomyCard] = useState<{
@@ -1011,8 +1024,8 @@ export default function LogSessionPage() {
 
       if (newDrafts.length > 0) {
         setTechniqueDrafts(newDrafts);
-        // Auto-switch to lesson mode if techniques were extracted
-        setMode("lesson");
+        // Ensure techniques section is visible when extraction fills it
+        setShowTechniques(true);
       }
     }
 
@@ -1058,10 +1071,8 @@ export default function LogSessionPage() {
       });
 
       setRoundDrafts(newRounds);
-      // Auto-switch to sparring mode if rounds were extracted
-      if (session.techniques.length === 0 && session.positionNotes.length === 0) {
-        setMode("sparring");
-      }
+      // Ensure sparring section is visible when extraction fills it
+      setShowSparring(true);
     }
   }
 
@@ -1288,6 +1299,14 @@ export default function LogSessionPage() {
       now,
     );
 
+    setSavedSummary({
+      date,
+      techniques: techniquesDrilled.length,
+      rounds: sparringRounds.length,
+      subsFor: sparringRounds.reduce((sum, r) => sum + r.submissionsForCount, 0),
+      subsAgainst: sparringRounds.reduce((sum, r) => sum + r.submissionsAgainstCount, 0),
+      sessionId,
+    });
     setSaved(true);
     resetForm();
     setTimeout(() => setSaved(false), 1500);
@@ -1386,37 +1405,51 @@ export default function LogSessionPage() {
           ) : null}
         </Card>
 
-        {/* Primary Mode Selection Tabs */}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("lesson")}
-            className={`flex-1 rounded-xl px-6 py-4 text-center font-semibold transition ${
-              mode === "lesson"
-                ? "bg-amber-500 text-white shadow-md"
-                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-            }`}
-          >
-            <span className="block text-lg">Log Lesson</span>
-            <span className="block text-xs opacity-80">
-              Techniques drilled, position notes
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("sparring")}
-            className={`flex-1 rounded-xl px-6 py-4 text-center font-semibold transition ${
-              mode === "sparring"
-                ? "bg-amber-500 text-white shadow-md"
-                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-            }`}
-          >
-            <span className="block text-lg">Log Sparring</span>
-            <span className="block text-xs opacity-80">
-              Rounds, partners, submissions
-            </span>
-          </button>
-        </div>
+        {/* Post-save summary */}
+        {savedSummary && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-emerald-700">
+                  Session saved &mdash;{" "}
+                  {new Date(savedSummary.date).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </p>
+                <p className="mt-1 text-sm text-emerald-600">
+                  {savedSummary.techniques} technique
+                  {savedSummary.techniques !== 1 ? "s" : ""}
+                  {savedSummary.rounds > 0 &&
+                    ` · ${savedSummary.rounds} round${savedSummary.rounds !== 1 ? "s" : ""} · +${savedSummary.subsFor}/-${savedSummary.subsAgainst} subs`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSavedSummary(null)}
+                className="text-xs text-emerald-500"
+              >
+                Dismiss
+              </button>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Link
+                href={`/sessions/${savedSummary.sessionId}`}
+                className="rounded-full border border-emerald-300 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              >
+                View session
+              </Link>
+              <button
+                type="button"
+                onClick={() => setSavedSummary(null)}
+                className="rounded-full border border-emerald-300 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              >
+                Log another
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Collapsible Metadata Section */}
         <div className="rounded-xl border border-zinc-200 bg-zinc-50">
@@ -1485,15 +1518,28 @@ export default function LogSessionPage() {
           )}
         </div>
 
-        {/* Lesson Mode: Techniques Section */}
-        {mode === "lesson" && (
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">What did you work on?</h2>
-              <Button variant="secondary" size="sm" onClick={addTechnique}>
-                Add technique
-              </Button>
-            </div>
+        {/* Techniques Section (always visible, collapsible) */}
+        <section className="space-y-4">
+          <button
+            type="button"
+            onClick={() => setShowTechniques(!showTechniques)}
+            className="flex w-full items-center justify-between"
+          >
+            <h2 className="text-lg font-semibold">What did you work on?</h2>
+            <span className="text-xs text-zinc-400">
+              {showTechniques ? "Collapse" : "Expand"}
+              {!showTechniques && techniqueDrafts.some((d) => d.positionId || d.techniqueId)
+                ? ` (${techniqueDrafts.filter((d) => d.positionId || d.techniqueId).length} items)`
+                : ""}
+            </span>
+          </button>
+          {showTechniques && (
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button variant="secondary" size="sm" onClick={addTechnique}>
+                  Add technique
+                </Button>
+              </div>
 
             {techniqueDrafts.map((draft, indexValue) => {
               const technique = draft.techniqueId
@@ -1625,18 +1671,41 @@ export default function LogSessionPage() {
                 </Card>
               );
             })}
-          </section>
-        )}
-
-        {/* Sparring Mode: Rounds Section */}
-        {mode === "sparring" && (
-          <section className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">How did sparring go?</h2>
-              <Button variant="secondary" size="sm" onClick={addRound}>
-                Add round
-              </Button>
             </div>
+          )}
+        </section>
+
+        {/* Sparring Section (always visible, collapsible) */}
+        <section className="space-y-4">
+          <button
+            type="button"
+            onClick={() => setShowSparring(!showSparring)}
+            className="flex w-full items-center justify-between"
+          >
+            <h2 className="text-lg font-semibold">How did sparring go?</h2>
+            <span className="text-xs text-zinc-400">
+              {showSparring ? "Collapse" : "Expand"}
+              {!showSparring && roundDrafts.some((r) => r.partnerName.trim() || r.submissionsForCount > 0 || r.submissionsAgainstCount > 0)
+                ? ` (${roundDrafts.filter((r) => r.partnerName.trim() || r.submissionsForCount > 0 || r.submissionsAgainstCount > 0).length} rounds)`
+                : ""}
+            </span>
+          </button>
+          {showSparring && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {roundDrafts.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setCompactRounds(!compactRounds)}
+                    className="text-xs font-semibold text-zinc-500"
+                  >
+                    {compactRounds ? "Expand all" : "Compact view"}
+                  </button>
+                )}
+                <Button variant="secondary" size="sm" onClick={addRound}>
+                  Add round
+                </Button>
+              </div>
 
             <div className="space-y-4">
               {roundDrafts.map((round, roundIndex) => {
@@ -1654,21 +1723,84 @@ export default function LogSessionPage() {
                       .slice(0, 5)
                   : [];
 
+                const isExpanded = !compactRounds || expandedRoundIds.has(round.id);
+
+                // Compact row view
+                if (!isExpanded) {
+                  const dominantLabels = round.dominantPositions
+                    .map((id) => index.positionsById.get(id)?.name)
+                    .filter(Boolean)
+                    .join(", ");
+                  return (
+                    <button
+                      key={round.id}
+                      type="button"
+                      onClick={() =>
+                        setExpandedRoundIds((prev) => {
+                          const next = new Set(prev);
+                          next.add(round.id);
+                          return next;
+                        })
+                      }
+                      className="flex w-full items-center gap-3 rounded-xl border border-zinc-100 bg-white px-4 py-3 text-left text-sm transition hover:border-zinc-200 hover:shadow-sm"
+                    >
+                      <span className="w-8 shrink-0 font-semibold text-zinc-400">
+                        R{roundIndex + 1}
+                      </span>
+                      <span className="flex min-w-0 flex-1 items-center gap-2">
+                        {belt && (
+                          <span
+                            className={`h-2.5 w-2.5 shrink-0 rounded-full border ${belt.dotClass}`}
+                          />
+                        )}
+                        <span className="truncate font-medium text-zinc-700">
+                          {round.partnerName.trim() || "Partner unknown"}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-semibold text-zinc-600">
+                        +{round.submissionsForCount} / -{round.submissionsAgainstCount}
+                      </span>
+                      {dominantLabels && (
+                        <span className="hidden truncate text-xs text-zinc-400 sm:block">
+                          {dominantLabels}
+                        </span>
+                      )}
+                    </button>
+                  );
+                }
+
                 return (
                   <Card key={round.id} variant="nested">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h3 className="text-sm font-semibold text-zinc-700">
                         Round {roundIndex + 1}
                       </h3>
-                      {roundDrafts.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeRound(round.id)}
-                          className="text-xs font-semibold text-zinc-500 transition hover:text-red-500"
-                        >
-                          Remove
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {compactRounds && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedRoundIds((prev) => {
+                                const next = new Set(prev);
+                                next.delete(round.id);
+                                return next;
+                              })
+                            }
+                            className="text-xs font-semibold text-zinc-500"
+                          >
+                            Compact
+                          </button>
+                        )}
+                        {roundDrafts.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeRound(round.id)}
+                            className="text-xs font-semibold text-zinc-500 transition hover:text-red-500"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -1955,8 +2087,9 @@ export default function LogSessionPage() {
                 );
               })}
             </div>
-          </section>
-        )}
+            </div>
+          )}
+        </section>
 
         {/* Notes Section - Collapsed by default */}
         <div className="rounded-xl border border-zinc-200 bg-zinc-50">

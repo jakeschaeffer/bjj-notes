@@ -1,17 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { differenceInCalendarDays, format } from "date-fns";
+import { format } from "date-fns";
 
 import { useLocalSessions } from "@/hooks/use-local-sessions";
 import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 import { Modal } from "@/components/ui/modal";
-
-function sortCounts(entries: Record<string, number>) {
-  return Object.entries(entries)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-}
+import {
+  TrainingCalendar,
+  StreakStats,
+  TechniqueRecencyList,
+  PositionCoverageChart,
+  SparringTimeline,
+  KnowledgeCard,
+} from "@/components/progress";
 
 export default function ProgressPage() {
   const { sessions } = useLocalSessions();
@@ -22,43 +24,45 @@ export default function ProgressPage() {
     updateTechniqueNote,
     updatePositionNote,
   } = useUserTaxonomy();
+
+  // Modal state for position/technique detail (preserved from original)
   const [activePositionId, setActivePositionId] = useState<string | null>(null);
-  const [activeTechniqueId, setActiveTechniqueId] = useState<string | null>(null);
-  const [positionQuery, setPositionQuery] = useState("");
-  const [techniqueQuery, setTechniqueQuery] = useState("");
-  const [editTarget, setEditTarget] = useState<
-    { type: "position" | "technique"; id: string } | null
-  >(null);
+  const [activeTechniqueId, setActiveTechniqueId] = useState<string | null>(
+    null,
+  );
+  const [editTarget, setEditTarget] = useState<{
+    type: "position" | "technique";
+    id: string;
+  } | null>(null);
   const [editNotes, setEditNotes] = useState("");
 
+  // Knowledge cards state
+  const [knowledgeQuery, setKnowledgeQuery] = useState("");
+  const [showAllKnowledge, setShowAllKnowledge] = useState(false);
+
+  // Build stats for modal content
   const stats = useMemo(() => {
-    const positionCounts: Record<string, number> = {};
-    const techniqueCounts: Record<string, number> = {};
     const positionNotes: Record<
       string,
-      { sessionId: string; date: string; notes: string; keyDetails: string[] }[]
+      {
+        sessionId: string;
+        date: string;
+        notes: string;
+        keyDetails: string[];
+      }[]
     > = {};
     const techniqueNotes: Record<
       string,
-      { sessionId: string; date: string; notes: string; keyDetails: string[] }[]
+      {
+        sessionId: string;
+        date: string;
+        notes: string;
+        keyDetails: string[];
+      }[]
     > = {};
-
-    let techniqueTotal = 0;
 
     for (const session of sessions) {
       for (const technique of session.techniques) {
-        techniqueTotal += 1;
-
-        if (technique.positionId) {
-          positionCounts[technique.positionId] =
-            (positionCounts[technique.positionId] ?? 0) + 1;
-        }
-
-        if (technique.techniqueId) {
-          techniqueCounts[technique.techniqueId] =
-            (techniqueCounts[technique.techniqueId] ?? 0) + 1;
-        }
-
         if (technique.notes.trim() || technique.keyDetails.length > 0) {
           const entries = techniqueNotes[technique.techniqueId] ?? [];
           entries.push({
@@ -72,11 +76,6 @@ export default function ProgressPage() {
       }
 
       for (const note of session.positionNotes) {
-        if (note.positionId) {
-          positionCounts[note.positionId] =
-            (positionCounts[note.positionId] ?? 0) + 1;
-        }
-
         if (note.notes.trim() || note.keyDetails.length > 0) {
           const entries = positionNotes[note.positionId] ?? [];
           entries.push({
@@ -90,61 +89,50 @@ export default function ProgressPage() {
       }
     }
 
-    const last30Days = sessions.filter((session) => {
-      const diff = differenceInCalendarDays(new Date(), new Date(session.date));
-      return diff >= 0 && diff <= 30;
-    }).length;
-
-    return {
-      totalSessions: sessions.length,
-      techniqueTotal,
-      last30Days,
-      topPositions: sortCounts(positionCounts),
-      topTechniques: sortCounts(techniqueCounts),
-      positionCounts,
-      techniqueCounts,
-      positionNotes,
-      techniqueNotes,
-    };
+    return { positionNotes, techniqueNotes };
   }, [sessions]);
 
-  const loggedPositions = useMemo(() => {
-    return Object.keys(stats.positionCounts)
-      .map((id) => index.positionsById.get(id))
-      .filter((position): position is NonNullable<typeof position> => Boolean(position))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [index.positionsById, stats.positionCounts]);
+  // Positions that have session data (for knowledge cards)
+  const knowledgePositions = useMemo(() => {
+    const positionCounts = new Map<string, number>();
+    for (const session of sessions) {
+      for (const technique of session.techniques) {
+        if (technique.positionId) {
+          positionCounts.set(
+            technique.positionId,
+            (positionCounts.get(technique.positionId) ?? 0) + 1,
+          );
+        }
+      }
+      for (const note of session.positionNotes) {
+        positionCounts.set(
+          note.positionId,
+          (positionCounts.get(note.positionId) ?? 0) + 1,
+        );
+      }
+    }
 
-  const loggedTechniques = useMemo(() => {
-    return Object.keys(stats.techniqueCounts)
-      .map((id) => index.techniquesById.get(id))
+    return [...positionCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([id]) => index.positionsById.get(id))
       .filter(
-        (technique): technique is NonNullable<typeof technique> =>
-          Boolean(technique),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [index.techniquesById, stats.techniqueCounts]);
+        (p): p is NonNullable<typeof p> => Boolean(p),
+      );
+  }, [sessions, index]);
 
-  const filteredPositions = useMemo(() => {
-    const query = positionQuery.trim().toLowerCase();
-    if (!query) {
-      return loggedPositions;
-    }
-    return loggedPositions.filter((position) =>
-      position.name.toLowerCase().includes(query),
+  const filteredKnowledgePositions = useMemo(() => {
+    const query = knowledgeQuery.trim().toLowerCase();
+    if (!query) return knowledgePositions;
+    return knowledgePositions.filter((p) =>
+      p.name.toLowerCase().includes(query),
     );
-  }, [loggedPositions, positionQuery]);
+  }, [knowledgePositions, knowledgeQuery]);
 
-  const filteredTechniques = useMemo(() => {
-    const query = techniqueQuery.trim().toLowerCase();
-    if (!query) {
-      return loggedTechniques;
-    }
-    return loggedTechniques.filter((technique) =>
-      technique.name.toLowerCase().includes(query),
-    );
-  }, [loggedTechniques, techniqueQuery]);
+  const displayKnowledgePositions = showAllKnowledge
+    ? filteredKnowledgePositions
+    : filteredKnowledgePositions.slice(0, 6);
 
+  // Modal computed values (preserved from original)
   const activePosition = activePositionId
     ? index.positionsById.get(activePositionId) ?? null
     : null;
@@ -159,31 +147,23 @@ export default function ProgressPage() {
     : "";
 
   const activePositionBreadcrumb = useMemo(() => {
-    if (!activePositionId) {
-      return [];
-    }
+    if (!activePositionId) return [];
     return index.getBreadcrumb(activePositionId);
   }, [activePositionId, index]);
 
   const activePositionChildren = useMemo(() => {
-    if (!activePositionId) {
-      return [];
-    }
+    if (!activePositionId) return [];
     return index.getChildren(activePositionId);
   }, [activePositionId, index]);
 
   const activePositionTechniques = useMemo(() => {
-    if (!activePositionId) {
-      return [];
-    }
+    if (!activePositionId) return [];
 
     const ids = new Set<string>();
     const stack = [activePositionId];
     while (stack.length > 0) {
       const current = stack.pop();
-      if (!current || ids.has(current)) {
-        continue;
-      }
+      if (!current || ids.has(current)) continue;
       ids.add(current);
       const children = index.getChildren(current);
       for (const child of children) {
@@ -208,161 +188,122 @@ export default function ProgressPage() {
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">Your overview</h1>
         <p className="text-sm text-zinc-600">
-          Quick stats from logged sessions.
+          Training consistency, technique coverage, and accumulated knowledge.
         </p>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-            Total sessions
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {stats.totalSessions}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-            Techniques logged
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {stats.techniqueTotal}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-            Last 30 days
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {stats.last30Days}
-          </p>
-        </div>
+      {/* Streak & consistency stats */}
+      <StreakStats sessions={sessions} />
+
+      {/* Training calendar */}
+      <section className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <h2 className="mb-4 text-lg font-semibold">Training activity</h2>
+        <TrainingCalendar sessions={sessions} />
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2">
+      {/* Technique recency + Position coverage side by side */}
+      <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Top positions</h2>
-          {stats.topPositions.length === 0 ? (
-            <p className="mt-2 text-sm text-zinc-600">No data yet.</p>
-          ) : (
-            <ol className="mt-3 space-y-2 text-sm text-zinc-600">
-              {stats.topPositions.map(([positionId, count]) => (
-                <li key={positionId}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTechniqueId(null);
-                      setActivePositionId(positionId);
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left transition hover:bg-amber-50"
-                  >
-                    <span>{index.positionsById.get(positionId)?.name ?? positionId}</span>
-                    <span className="font-semibold text-zinc-800">{count}</span>
-                  </button>
-                </li>
-              ))}
-            </ol>
+          <TechniqueRecencyList sessions={sessions} index={index} />
+          {sessions.length === 0 && (
+            <div>
+              <h2 className="text-lg font-semibold">Technique recency</h2>
+              <p className="mt-2 text-sm text-zinc-600">No data yet.</p>
+            </div>
           )}
         </div>
         <div className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Top techniques</h2>
-          {stats.topTechniques.length === 0 ? (
-            <p className="mt-2 text-sm text-zinc-600">No data yet.</p>
-          ) : (
-            <ol className="mt-3 space-y-2 text-sm text-zinc-600">
-              {stats.topTechniques.map(([techniqueId, count]) => {
-                const technique = index.techniquesById.get(techniqueId);
-                return (
-                  <li key={techniqueId}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActivePositionId(null);
-                        setActiveTechniqueId(techniqueId);
-                      }}
-                      className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left transition hover:bg-amber-50"
-                    >
-                      <span>{technique?.name ?? techniqueId}</span>
-                      <span className="font-semibold text-zinc-800">{count}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Explore positions</h2>
-          <input
-            value={positionQuery}
-            onChange={(event) => setPositionQuery(event.target.value)}
-            placeholder="Search positions"
-            className="mt-3 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+          <PositionCoverageChart
+            sessions={sessions}
+            index={index}
+            onPositionClick={(positionId) => {
+              setActiveTechniqueId(null);
+              setActivePositionId(positionId);
+            }}
           />
-          {filteredPositions.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-600">No positions logged yet.</p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm text-zinc-600">
-              {filteredPositions.map((position) => (
-                <li key={position.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTechniqueId(null);
-                      setActivePositionId(position.id);
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left transition hover:bg-amber-50"
-                  >
-                    <span>{position.name}</span>
-                    <span className="text-xs text-zinc-400">
-                      {stats.positionCounts[position.id] ?? 0} logs •{" "}
-                      {(stats.positionNotes[position.id] ?? []).length} notes
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Explore techniques</h2>
-          <input
-            value={techniqueQuery}
-            onChange={(event) => setTechniqueQuery(event.target.value)}
-            placeholder="Search techniques"
-            className="mt-3 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-          />
-          {filteredTechniques.length === 0 ? (
-            <p className="mt-3 text-sm text-zinc-600">No techniques logged yet.</p>
-          ) : (
-            <ul className="mt-3 space-y-2 text-sm text-zinc-600">
-              {filteredTechniques.map((technique) => (
-                <li key={technique.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActivePositionId(null);
-                      setActiveTechniqueId(technique.id);
-                    }}
-                    className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left transition hover:bg-amber-50"
-                  >
-                    <span>{technique.name}</span>
-                    <span className="text-xs text-zinc-400">
-                      {stats.techniqueCounts[technique.id] ?? 0} logs •{" "}
-                      {(stats.techniqueNotes[technique.id] ?? []).length} notes
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {sessions.length === 0 && (
+            <div>
+              <h2 className="text-lg font-semibold">Position coverage</h2>
+              <p className="mt-2 text-sm text-zinc-600">No data yet.</p>
+            </div>
           )}
         </div>
       </section>
 
+      {/* Sparring timeline */}
+      <section className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <SparringTimeline sessions={sessions} />
+        {sessions.every(
+          (s) => s.sparringRounds.length === 0 && !s.legacySparring,
+        ) && (
+          <div>
+            <h2 className="text-lg font-semibold">Sparring</h2>
+            <p className="mt-2 text-sm text-zinc-600">No sparring data yet.</p>
+          </div>
+        )}
+      </section>
+
+      {/* Knowledge cards */}
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">What you know</h2>
+            <p className="text-sm text-zinc-500">
+              Knowledge organized by position.
+            </p>
+          </div>
+          <input
+            value={knowledgeQuery}
+            onChange={(e) => setKnowledgeQuery(e.target.value)}
+            placeholder="Search positions..."
+            className="w-48 rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+          />
+        </div>
+
+        {displayKnowledgePositions.length === 0 ? (
+          <div className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+            <p className="text-sm text-zinc-600">
+              {knowledgeQuery
+                ? "No positions match your search."
+                : "No positions logged yet. Log sessions to build your knowledge base."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {displayKnowledgePositions.map((position) => (
+              <KnowledgeCard
+                key={position.id}
+                position={position}
+                sessions={sessions}
+                index={index}
+                personalNotes={
+                  positionNotesById.get(position.id)?.notes ?? ""
+                }
+                onEditNotes={() => {
+                  setEditTarget({ type: "position", id: position.id });
+                  setEditNotes(
+                    positionNotesById.get(position.id)?.notes ?? "",
+                  );
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {filteredKnowledgePositions.length > 6 && (
+          <button
+            type="button"
+            onClick={() => setShowAllKnowledge(!showAllKnowledge)}
+            className="text-xs font-semibold text-amber-600"
+          >
+            {showAllKnowledge
+              ? "Show less"
+              : `Show all ${filteredKnowledgePositions.length} positions`}
+          </button>
+        )}
+      </section>
+
+      {/* Position/Technique detail modal (preserved from original) */}
       <Modal
         open={Boolean(activePosition || activeTechnique)}
         onClose={() => {
@@ -389,7 +330,9 @@ export default function ProgressPage() {
                       className="rounded-full border border-amber-200 px-2 py-1"
                     >
                       {item.name}
-                      {indexValue < activePositionBreadcrumb.length - 1 ? " /" : ""}
+                      {indexValue < activePositionBreadcrumb.length - 1
+                        ? " /"
+                        : ""}
                     </button>
                   ))}
                 </div>
@@ -426,7 +369,10 @@ export default function ProgressPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setEditTarget({ type: "position", id: activePosition.id });
+                    setEditTarget({
+                      type: "position",
+                      id: activePosition.id,
+                    });
                     setEditNotes(activePositionNote);
                   }}
                   className="text-xs font-semibold text-amber-600"
@@ -435,9 +381,13 @@ export default function ProgressPage() {
                 </button>
               </div>
               {activePositionNote ? (
-                <p className="mt-2 text-sm text-zinc-600">{activePositionNote}</p>
+                <p className="mt-2 text-sm text-zinc-600">
+                  {activePositionNote}
+                </p>
               ) : (
-                <p className="mt-2 text-sm text-zinc-500">No personal notes.</p>
+                <p className="mt-2 text-sm text-zinc-500">
+                  No personal notes.
+                </p>
               )}
             </div>
 
@@ -447,31 +397,33 @@ export default function ProgressPage() {
               </p>
               {stats.positionNotes[activePosition.id]?.length ? (
                 <div className="mt-2 space-y-3">
-                  {stats.positionNotes[activePosition.id].map((entry, indexValue) => (
-                    <div
-                      key={`${entry.sessionId}-${entry.date}-${indexValue}`}
-                      className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-600"
-                    >
-                      <p className="text-xs font-semibold text-zinc-400">
-                        {format(new Date(entry.date), "MMM d, yyyy")}
-                      </p>
-                      {entry.keyDetails.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {entry.keyDetails.map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                      {entry.notes ? (
-                        <p className="mt-2">{entry.notes}</p>
-                      ) : null}
-                    </div>
-                  ))}
+                  {stats.positionNotes[activePosition.id].map(
+                    (entry, indexValue) => (
+                      <div
+                        key={`${entry.sessionId}-${entry.date}-${indexValue}`}
+                        className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-600"
+                      >
+                        <p className="text-xs font-semibold text-zinc-400">
+                          {format(new Date(entry.date), "MMM d, yyyy")}
+                        </p>
+                        {entry.keyDetails.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {entry.keyDetails.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {entry.notes ? (
+                          <p className="mt-2">{entry.notes}</p>
+                        ) : null}
+                      </div>
+                    ),
+                  )}
                 </div>
               ) : (
                 <p className="mt-2 text-sm text-zinc-500">No notes yet.</p>
@@ -483,7 +435,9 @@ export default function ProgressPage() {
                 Techniques from this position
               </p>
               {activePositionTechniques.length === 0 ? (
-                <p className="mt-2 text-sm text-zinc-500">No techniques logged yet.</p>
+                <p className="mt-2 text-sm text-zinc-500">
+                  No techniques logged yet.
+                </p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {activePositionTechniques.map((technique) => (
@@ -528,7 +482,10 @@ export default function ProgressPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setEditTarget({ type: "technique", id: activeTechnique.id });
+                    setEditTarget({
+                      type: "technique",
+                      id: activeTechnique.id,
+                    });
                     setEditNotes(activeTechniqueNote);
                   }}
                   className="text-xs font-semibold text-amber-600"
@@ -537,9 +494,13 @@ export default function ProgressPage() {
                 </button>
               </div>
               {activeTechniqueNote ? (
-                <p className="mt-2 text-sm text-zinc-600">{activeTechniqueNote}</p>
+                <p className="mt-2 text-sm text-zinc-600">
+                  {activeTechniqueNote}
+                </p>
               ) : (
-                <p className="mt-2 text-sm text-zinc-500">No personal notes.</p>
+                <p className="mt-2 text-sm text-zinc-500">
+                  No personal notes.
+                </p>
               )}
             </div>
 
@@ -549,31 +510,33 @@ export default function ProgressPage() {
               </p>
               {stats.techniqueNotes[activeTechnique.id]?.length ? (
                 <div className="mt-2 space-y-3">
-                  {stats.techniqueNotes[activeTechnique.id].map((entry, indexValue) => (
-                    <div
-                      key={`${entry.sessionId}-${entry.date}-${indexValue}`}
-                      className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-600"
-                    >
-                      <p className="text-xs font-semibold text-zinc-400">
-                        {format(new Date(entry.date), "MMM d, yyyy")}
-                      </p>
-                      {entry.keyDetails.length > 0 ? (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {entry.keyDetails.map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
-                      {entry.notes ? (
-                        <p className="mt-2">{entry.notes}</p>
-                      ) : null}
-                    </div>
-                  ))}
+                  {stats.techniqueNotes[activeTechnique.id].map(
+                    (entry, indexValue) => (
+                      <div
+                        key={`${entry.sessionId}-${entry.date}-${indexValue}`}
+                        className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-600"
+                      >
+                        <p className="text-xs font-semibold text-zinc-400">
+                          {format(new Date(entry.date), "MMM d, yyyy")}
+                        </p>
+                        {entry.keyDetails.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {entry.keyDetails.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                        {entry.notes ? (
+                          <p className="mt-2">{entry.notes}</p>
+                        ) : null}
+                      </div>
+                    ),
+                  )}
                 </div>
               ) : (
                 <p className="mt-2 text-sm text-zinc-500">No notes yet.</p>
@@ -583,6 +546,7 @@ export default function ProgressPage() {
         ) : null}
       </Modal>
 
+      {/* Edit notes modal */}
       <Modal
         open={Boolean(editTarget)}
         onClose={() => setEditTarget(null)}
@@ -606,9 +570,7 @@ export default function ProgressPage() {
             <button
               type="button"
               onClick={() => {
-                if (!editTarget) {
-                  return;
-                }
+                if (!editTarget) return;
                 if (editTarget.type === "position") {
                   updatePositionNote(editTarget.id, editNotes);
                 } else {
