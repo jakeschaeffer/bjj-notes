@@ -1617,20 +1617,39 @@ export default function LogSessionPage() {
                     </div>
                   </div>
 
+                  {/* Notes — always visible, compact */}
+                  <textarea
+                    value={draft.notes}
+                    onChange={(event) =>
+                      updateTechnique(draft.id, {
+                        notes: event.target.value,
+                        notesExpanded: true,
+                      })
+                    }
+                    placeholder="Notes — what did you learn?"
+                    rows={2}
+                    className="mt-3 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm placeholder:text-zinc-400"
+                  />
+
+                  {/* Tags — collapsed, secondary */}
                   <button
                     type="button"
                     onClick={() =>
                       updateTechnique(draft.id, { expanded: !draft.expanded })
                     }
-                    className="mt-4 text-xs font-semibold text-zinc-500"
+                    className="mt-2 text-xs font-semibold text-zinc-500"
                   >
-                    {draft.expanded ? "Collapse details" : "Add details"}
+                    {draft.expanded
+                      ? "Hide tags"
+                      : draft.keyDetails.length > 0
+                        ? `Tags (${draft.keyDetails.length})`
+                        : "Add tags"}
                   </button>
 
                   {draft.expanded ? (
-                    <div className="mt-4 space-y-4 rounded-xl border border-zinc-100 bg-zinc-50 p-4">
-                      <div className="space-y-2">
-                        <p className="text-sm font-semibold text-zinc-700">Key details</p>
+                    <div className="mt-2 rounded-xl border border-zinc-100 bg-zinc-50 p-4">
+                      <p className="text-sm font-semibold text-zinc-700">Key details</p>
+                      <div className="mt-2">
                         <TagPicker
                           value={draft.keyDetails}
                           suggestions={suggestions}
@@ -1638,33 +1657,6 @@ export default function LogSessionPage() {
                             updateTechnique(draft.id, { keyDetails: tags })
                           }
                         />
-                      </div>
-                      <div className="space-y-2">
-                        {!draft.notesExpanded && draft.notes.length === 0 ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateTechnique(draft.id, { notesExpanded: true })
-                            }
-                            className="text-xs font-semibold text-zinc-500"
-                          >
-                            Add notes
-                          </button>
-                        ) : (
-                          <label className="space-y-2 text-sm font-medium text-zinc-700">
-                            Notes
-                            <textarea
-                              value={draft.notes}
-                              onChange={(event) =>
-                                updateTechnique(draft.id, {
-                                  notes: event.target.value,
-                                  notesExpanded: true,
-                                })
-                              }
-                              className="min-h-[90px] w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                            />
-                          </label>
-                        )}
                       </div>
                     </div>
                   ) : null}
