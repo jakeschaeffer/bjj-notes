@@ -1,6 +1,6 @@
 # Technical Overview
 
-BJJ Notes is an invite-only training log application with AI-powered voice transcription, intelligent taxonomy matching, and session analytics. Built with Next.js 16, React 19, Supabase, and OpenAI.
+Grapple Graph is an invite-only training log application with AI-powered voice transcription, intelligent taxonomy matching, and session analytics. Built with Next.js 16, React 19, Supabase, and OpenAI.
 
 ---
 

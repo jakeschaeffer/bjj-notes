@@ -31,7 +31,7 @@ export default function Home() {
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-10 sm:py-14">
         <header className="flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-500">
-            BJJ Notes
+            Grapple Graph
           </p>
           <AccountActions />
         </header>

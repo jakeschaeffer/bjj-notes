@@ -1,12 +1,12 @@
 # AI Agent Guidelines
 
-This document provides context for AI coding assistants working on the BJJ Notes codebase.
+This document provides context for AI coding assistants working on the Grapple Graph codebase.
 
 ---
 
 ## Quick Context
 
-BJJ Notes is a **Brazilian Jiu-Jitsu training log** with:
+Grapple Graph is a **Brazilian Jiu-Jitsu training log** with:
 - Voice-to-text session logging via OpenAI Whisper + GPT-4o-mini
 - Hierarchical position/technique taxonomy with fuzzy matching
 - Supabase backend (auth, database, storage)
