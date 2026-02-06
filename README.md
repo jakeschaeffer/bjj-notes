@@ -1,4 +1,4 @@
-# BJJ Notes
+# Grapple Graph
 
 A personal training journal for Brazilian Jiu-Jitsu practitioners. Track techniques, log sparring sessions, and monitor your progress over time.
 

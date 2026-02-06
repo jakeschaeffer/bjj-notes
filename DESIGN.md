@@ -1,8 +1,8 @@
-# BJJ Notes — UI Design Spec
+# Grapple Graph — UI Design Spec
 
 ## Design Philosophy
 
-BJJ Notes is a post-training capture tool. The user just finished rolling—they're
+Grapple Graph is a post-training capture tool. The user just finished rolling—they're
 tired, sweaty, and have maybe 5 minutes of motivation before the details fade. Every
 screen must respect that constraint: **fast capture first, rich review later.**
 
@@ -400,7 +400,7 @@ Log | Sessions | Progress | Library
 - **Library**: Combines current Techniques + Taxonomy into one browsable reference
   (positions tree + technique search in a single page with tabs)
 
-Home page becomes the dashboard entry point and is accessible via the "BJJ Notes"
+Home page becomes the dashboard entry point and is accessible via the "Grapple Graph"
 logo tap (already works this way).
 
 ---
@@ -467,7 +467,7 @@ dependency is just `[sessions]`.
 
 ## 6. Mobile Considerations
 
-BJJ Notes will primarily be used on a phone, right after training. Key mobile
+Grapple Graph will primarily be used on a phone, right after training. Key mobile
 decisions:
 
 - **Touch targets**: All tappable elements minimum 44px tall (already enforced by
