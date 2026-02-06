@@ -12,9 +12,12 @@ type CardProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 const variantStyles: Record<CardVariant, string> = {
-  section: "rounded-2xl border border-amber-100 bg-white p-6 shadow-sm",
-  nested: "rounded-2xl border border-amber-100 bg-white p-5 shadow-sm",
-  dropdown: "rounded-lg border border-zinc-200 bg-white shadow-sm",
+  section:
+    "rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_60px_-40px_var(--shadow)]",
+  nested:
+    "rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_24px_60px_-40px_var(--shadow)]",
+  dropdown:
+    "rounded-xl border border-[var(--line)] bg-[var(--surface)] shadow-[0_12px_36px_-28px_var(--shadow)]",
 };
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(

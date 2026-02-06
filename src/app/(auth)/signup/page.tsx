@@ -53,62 +53,62 @@ export default function SignupPage() {
   return (
     <div className="space-y-6">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
+        <p className="text-xs font-semibold uppercase tracking-[0.4em] text-[var(--muted)]">
           Account
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight">Create account</h1>
-        <p className="text-sm text-zinc-600">
+        <h1 className="text-display text-4xl">Create account</h1>
+        <p className="text-sm text-[var(--muted)]">
           Keep your training history synced across devices.
         </p>
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <label className="space-y-2 text-sm font-medium text-zinc-700">
+        <label className="space-y-2 text-sm font-medium text-[var(--muted-strong)]">
           Email
           <input
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            className="w-full rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)]"
             required
           />
         </label>
-        <label className="space-y-2 text-sm font-medium text-zinc-700">
+        <label className="space-y-2 text-sm font-medium text-[var(--muted-strong)]">
           Password
           <input
             type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            className="w-full rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)]"
             required
           />
         </label>
-        <label className="space-y-2 text-sm font-medium text-zinc-700">
+        <label className="space-y-2 text-sm font-medium text-[var(--muted-strong)]">
           Signup code
           <input
             type="text"
             value={code}
             onChange={(event) => setCode(event.target.value)}
-            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            className="w-full rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[var(--foreground)]"
             placeholder="Enter invite code"
             required
           />
         </label>
 
-        {error ? <p className="text-sm text-red-500">{error}</p> : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-70"
+          className="w-full rounded-full bg-[var(--foreground)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.25em] text-[var(--background)] transition hover:translate-y-[-1px] disabled:opacity-70"
         >
           {loading ? "Creating account..." : "Create account"}
         </button>
       </form>
 
-      <p className="text-sm text-zinc-600">
+      <p className="text-sm text-[var(--muted)]">
         Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-amber-600">
+        <Link href="/login" className="font-semibold text-[var(--accent)]">
           Log in
         </Link>
       </p>

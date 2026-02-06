@@ -17,14 +17,14 @@ export default function SessionDetailPage() {
 
   if (!session) {
     return (
-      <div className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_60px_-40px_var(--shadow)]">
         <h1 className="text-lg font-semibold">Session not found</h1>
-        <p className="mt-2 text-sm text-zinc-600">
+        <p className="mt-2 text-sm text-[var(--muted)]">
           That session does not exist or has been deleted.
         </p>
         <Link
           href="/sessions"
-          className="mt-4 inline-flex rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+          className="mt-4 inline-flex rounded-full border border-[var(--line-strong)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-2)]"
         >
           Back to sessions
         </Link>
@@ -64,20 +64,20 @@ export default function SessionDetailPage() {
     <div className="space-y-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-[var(--muted)]">
             Session Detail
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="text-display text-4xl">
             {format(new Date(session.date), "MMM d, yyyy")}
           </h1>
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-[var(--muted)]">
             {session.sessionType.replace(/-/g, " ")} - {session.giOrNogi}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
             href="/sessions"
-            className="rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+            className="rounded-full border border-[var(--line-strong)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition hover:bg-[var(--surface-2)]"
           >
             Back
           </Link>
@@ -87,16 +87,16 @@ export default function SessionDetailPage() {
               deleteSession(session.id);
               router.push("/sessions");
             }}
-            className="rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+            className="rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50"
           >
             Delete
           </button>
         </div>
       </header>
 
-      <section className="grid gap-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+      <section className="grid gap-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_60px_-40px_var(--shadow)]">
         <h2 className="text-lg font-semibold">Summary</h2>
-        <div className="grid gap-3 text-sm text-zinc-600 sm:grid-cols-2">
+        <div className="grid gap-3 text-sm text-[var(--muted)] sm:grid-cols-2">
           <p>Duration: {session.durationMinutes ?? "-"} minutes</p>
           <p>Energy: {session.energyLevel ?? "-"}</p>
           <p>Rounds: {displayRounds}</p>
@@ -104,10 +104,10 @@ export default function SessionDetailPage() {
         </div>
         {useLegacy && session.legacySparring?.notes ? (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
               Sparring notes
             </p>
-            <p className="mt-2 text-sm text-zinc-700">
+            <p className="mt-2 text-sm text-[var(--foreground)]">
               {session.legacySparring.notes}
             </p>
           </div>
@@ -115,7 +115,7 @@ export default function SessionDetailPage() {
       </section>
 
       {roundCount > 0 ? (
-        <section className="space-y-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <section className="space-y-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_60px_-40px_var(--shadow)]">
           <h2 className="text-lg font-semibold">Sparring rounds</h2>
           <div className="space-y-4">
             {session.sparringRounds.map((round, indexValue) => {
@@ -125,23 +125,23 @@ export default function SessionDetailPage() {
               return (
                 <div
                   key={round.id}
-                  className="rounded-xl border border-zinc-100 bg-zinc-50 p-4"
+                  className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-4"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-zinc-800">
+                    <h3 className="text-sm font-semibold text-[var(--foreground)]">
                       Round {indexValue + 1}
                     </h3>
-                    <span className="text-xs font-semibold text-zinc-500">
+                    <span className="text-xs font-semibold text-[var(--muted)]">
                       {round.partnerName || "Partner unknown"} • {beltLabel}
                     </span>
                   </div>
-                  <div className="mt-3 grid gap-3 text-sm text-zinc-600 sm:grid-cols-2">
+                  <div className="mt-3 grid gap-3 text-sm text-[var(--muted)] sm:grid-cols-2">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
                         I submitted
                       </p>
                       {round.submissionsFor.length === 0 ? (
-                        <p className="mt-1 text-sm text-zinc-500">
+                        <p className="mt-1 text-sm text-[var(--muted)]">
                           {round.submissionsForCount > 0
                             ? `Count: ${round.submissionsForCount} (details not logged)`
                             : "None logged."}
@@ -165,7 +165,7 @@ export default function SessionDetailPage() {
                             })}
                           </ul>
                           {round.submissionsForCount > round.submissionsFor.length ? (
-                            <p className="text-xs text-zinc-500">
+                            <p className="text-xs text-[var(--muted)]">
                               Additional unlogged:{" "}
                               {round.submissionsForCount - round.submissionsFor.length}
                             </p>
@@ -174,11 +174,11 @@ export default function SessionDetailPage() {
                       )}
                     </div>
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
                         I got caught
                       </p>
                       {round.submissionsAgainst.length === 0 ? (
-                        <p className="mt-1 text-sm text-zinc-500">
+                        <p className="mt-1 text-sm text-[var(--muted)]">
                           {round.submissionsAgainstCount > 0
                             ? `Count: ${round.submissionsAgainstCount} (details not logged)`
                             : "None logged."}
@@ -203,7 +203,7 @@ export default function SessionDetailPage() {
                           </ul>
                           {round.submissionsAgainstCount >
                           round.submissionsAgainst.length ? (
-                            <p className="text-xs text-zinc-500">
+                            <p className="text-xs text-[var(--muted)]">
                               Additional unlogged:{" "}
                               {round.submissionsAgainstCount -
                                 round.submissionsAgainst.length}
@@ -215,9 +215,9 @@ export default function SessionDetailPage() {
                   </div>
                   {(round.dominantPositions.length > 0 ||
                     round.stuckPositions.length > 0) && (
-                    <div className="mt-4 grid gap-3 text-sm text-zinc-600 sm:grid-cols-2">
+                    <div className="mt-4 grid gap-3 text-sm text-[var(--muted)] sm:grid-cols-2">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
                           Dominated
                         </p>
                         <p className="mt-1">
@@ -231,7 +231,7 @@ export default function SessionDetailPage() {
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
                           Got stuck
                         </p>
                         <p className="mt-1">
@@ -247,7 +247,7 @@ export default function SessionDetailPage() {
                     </div>
                   )}
                   {round.notes ? (
-                    <p className="mt-3 text-sm text-zinc-600">{round.notes}</p>
+                    <p className="mt-3 text-sm text-[var(--muted)]">{round.notes}</p>
                   ) : null}
                 </div>
               );
@@ -256,10 +256,10 @@ export default function SessionDetailPage() {
         </section>
       ) : null}
 
-      <section className="space-y-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+      <section className="space-y-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_60px_-40px_var(--shadow)]">
         <h2 className="text-lg font-semibold">Techniques</h2>
         {session.techniques.length === 0 ? (
-          <p className="text-sm text-zinc-600">No techniques logged.</p>
+          <p className="text-sm text-[var(--muted)]">No techniques logged.</p>
         ) : (
           <div className="grid gap-3">
             {session.techniques.map((technique) => {
@@ -274,19 +274,19 @@ export default function SessionDetailPage() {
               return (
                 <div
                   key={technique.id}
-                  className="rounded-xl border border-zinc-100 bg-zinc-50 p-4"
+                  className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-4"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-zinc-800">
+                    <h3 className="text-sm font-semibold text-[var(--foreground)]">
                       {techniqueInfo?.name ?? "Unknown technique"}
                     </h3>
                     {techniqueInfo ? (
-                      <span className="text-xs font-semibold text-amber-600">
+                      <span className="text-xs font-semibold text-[var(--accent)]">
                         {techniqueInfo.category.replace(/-/g, " ")}
                       </span>
                     ) : null}
                   </div>
-                  <div className="mt-1 text-xs text-zinc-500">
+                  <div className="mt-1 text-xs text-[var(--muted)]">
                     {positionInfo?.name ?? "Position not set"}
                   </div>
                   {keyDetails.length > 0 ? (
@@ -294,7 +294,7 @@ export default function SessionDetailPage() {
                       {keyDetails.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+                          className="rounded-full border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--accent)]"
                         >
                           {tag}
                         </span>
@@ -302,7 +302,7 @@ export default function SessionDetailPage() {
                     </div>
                   ) : null}
                   {technique.notes ? (
-                    <p className="mt-2 text-sm text-zinc-600">
+                    <p className="mt-2 text-sm text-[var(--muted)]">
                       {technique.notes}
                     </p>
                   ) : null}
@@ -314,7 +314,7 @@ export default function SessionDetailPage() {
       </section>
 
       {session.positionNotes.length > 0 ? (
-        <section className="space-y-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <section className="space-y-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_60px_-40px_var(--shadow)]">
           <h2 className="text-lg font-semibold">Position notes</h2>
           <div className="grid gap-3">
             {session.positionNotes.map((note) => {
@@ -322,9 +322,9 @@ export default function SessionDetailPage() {
               return (
                 <div
                   key={note.id}
-                  className="rounded-xl border border-zinc-100 bg-zinc-50 p-4"
+                  className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-4"
                 >
-                  <h3 className="text-sm font-semibold text-zinc-800">
+                  <h3 className="text-sm font-semibold text-[var(--foreground)]">
                     {positionInfo?.name ?? "Unknown position"}
                   </h3>
                   {note.keyDetails.length > 0 ? (
@@ -332,7 +332,7 @@ export default function SessionDetailPage() {
                       {note.keyDetails.map((tag) => (
                         <span
                           key={tag}
-                          className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+                          className="rounded-full border border-[var(--accent)]/40 bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--accent)]"
                         >
                           {tag}
                         </span>
@@ -340,7 +340,7 @@ export default function SessionDetailPage() {
                     </div>
                   ) : null}
                   {note.notes ? (
-                    <p className="mt-2 text-sm text-zinc-600">{note.notes}</p>
+                    <p className="mt-2 text-sm text-[var(--muted)]">{note.notes}</p>
                   ) : null}
                 </div>
               );
@@ -350,27 +350,27 @@ export default function SessionDetailPage() {
       ) : null}
 
       {(session.notes || session.insights.length > 0 || session.goalsForNext.length > 0) && (
-        <section className="grid gap-4 rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
+        <section className="grid gap-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_60px_-40px_var(--shadow)]">
           <h2 className="text-lg font-semibold">Notes</h2>
           {session.notes ? (
-            <p className="text-sm text-zinc-600">{session.notes}</p>
+            <p className="text-sm text-[var(--muted)]">{session.notes}</p>
           ) : null}
           {session.insights.length > 0 ? (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
                 Insights
               </p>
-              <p className="mt-2 text-sm text-zinc-600">
+              <p className="mt-2 text-sm text-[var(--muted)]">
                 {session.insights.join(", ")}
               </p>
             </div>
           ) : null}
           {session.goalsForNext.length > 0 ? (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
                 Goals for next
               </p>
-              <p className="mt-2 text-sm text-zinc-600">
+              <p className="mt-2 text-sm text-[var(--muted)]">
                 {session.goalsForNext.join(", ")}
               </p>
             </div>

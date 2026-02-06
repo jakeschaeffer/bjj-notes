@@ -135,12 +135,16 @@ export function TechniquePicker({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm"
+        className="flex w-full items-center justify-between rounded-2xl border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3 text-left text-sm"
       >
-        <span className={value ? "text-zinc-900" : "text-zinc-400"}>
+        <span
+          className={
+            value ? "text-[var(--foreground)]" : "text-[var(--muted)]"
+          }
+        >
           {label}
         </span>
-        <span className="text-xs text-zinc-400">v</span>
+        <span className="text-xs text-[var(--muted)]">▾</span>
       </button>
 
       <Modal open={open} onClose={closeModal} title="Select technique">
@@ -149,7 +153,7 @@ export function TechniquePicker({
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Search techniques"
-            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+            className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--foreground)]"
           />
 
           {searchResults.length > 0 ? (
@@ -159,10 +163,10 @@ export function TechniquePicker({
                   key={technique.id}
                   type="button"
                   onClick={() => handleSelect(technique.id)}
-                  className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                  className="flex w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-left text-sm"
                 >
                   <span>{technique.name}</span>
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-[var(--muted)]">
                     {technique.category.replace(/-/g, " ")}
                   </span>
                 </button>
@@ -172,7 +176,7 @@ export function TechniquePicker({
             <div className="space-y-4">
               {positionId && suggestedTechniques.length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
                     Suggested from {positionName ?? "position"}
                   </p>
                   <div className="space-y-2">
@@ -181,10 +185,10 @@ export function TechniquePicker({
                         key={technique.id}
                         type="button"
                         onClick={() => handleSelect(technique.id)}
-                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                        className="flex w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-left text-sm"
                       >
                         <span>{technique.name}</span>
-                        <span className="text-xs text-zinc-400">
+                        <span className="text-xs text-[var(--muted)]">
                           {technique.category.replace(/-/g, " ")}
                         </span>
                       </button>
@@ -195,7 +199,7 @@ export function TechniquePicker({
 
               {recentTechniques.length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
                     Recent
                   </p>
                   <div className="space-y-2">
@@ -204,10 +208,10 @@ export function TechniquePicker({
                         key={technique.id}
                         type="button"
                         onClick={() => handleSelect(technique.id)}
-                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                        className="flex w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-left text-sm"
                       >
                         <span>{technique.name}</span>
-                        <span className="text-xs text-zinc-400">
+                        <span className="text-xs text-[var(--muted)]">
                           {technique.category.replace(/-/g, " ")}
                         </span>
                       </button>
@@ -217,7 +221,7 @@ export function TechniquePicker({
               ) : null}
 
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
                   All techniques
                 </p>
                 <div className="space-y-2">
@@ -226,10 +230,10 @@ export function TechniquePicker({
                       key={technique.id}
                       type="button"
                       onClick={() => handleSelect(technique.id)}
-                      className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                      className="flex w-full items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-left text-sm"
                     >
                       <span>{technique.name}</span>
-                      <span className="text-xs text-zinc-400">
+                      <span className="text-xs text-[var(--muted)]">
                         {technique.category.replace(/-/g, " ")}
                       </span>
                     </button>
@@ -242,7 +246,7 @@ export function TechniquePicker({
           <button
             type="button"
             onClick={openCustomTechnique}
-            className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-600"
+            className="w-full rounded-xl border border-dashed border-[var(--line-strong)] px-3 py-2 text-sm font-semibold text-[var(--muted)]"
           >
             Add custom technique
           </button>
@@ -255,23 +259,23 @@ export function TechniquePicker({
         title="Add custom technique"
       >
         <div className="space-y-4">
-          <label className="space-y-2 text-sm font-medium text-zinc-700">
+          <label className="space-y-2 text-sm font-medium text-[var(--muted-strong)]">
             Name
             <input
               value={customName}
               onChange={(event) => setCustomName(event.target.value)}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--foreground)]"
               placeholder="Knee shield entry"
             />
           </label>
-          <label className="space-y-2 text-sm font-medium text-zinc-700">
+          <label className="space-y-2 text-sm font-medium text-[var(--muted-strong)]">
             Category
             <select
               value={customCategory}
               onChange={(event) =>
                 setCustomCategory(event.target.value as TechniqueCategory)
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--foreground)]"
             >
               {techniqueCategories.map((category) => (
                 <option key={category} value={category}>
@@ -280,12 +284,12 @@ export function TechniquePicker({
               ))}
             </select>
           </label>
-          <label className="space-y-2 text-sm font-medium text-zinc-700">
+          <label className="space-y-2 text-sm font-medium text-[var(--muted-strong)]">
             Starting position
             <select
               value={customFromId ?? ""}
               onChange={(event) => setCustomFromId(event.target.value)}
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--foreground)]"
             >
               <option value="">Select position</option>
               {index.positionsInTreeOrder.map((position) => (
@@ -295,14 +299,14 @@ export function TechniquePicker({
               ))}
             </select>
           </label>
-          <label className="space-y-2 text-sm font-medium text-zinc-700">
+          <label className="space-y-2 text-sm font-medium text-[var(--muted-strong)]">
             Ending position (optional)
             <select
               value={customToId ?? ""}
               onChange={(event) =>
                 setCustomToId(event.target.value ? event.target.value : null)
               }
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--foreground)]"
             >
               <option value="">None</option>
               {index.positionsInTreeOrder.map((position) => (
@@ -316,14 +320,14 @@ export function TechniquePicker({
             <button
               type="button"
               onClick={() => setCustomOpen(false)}
-              className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+              className="rounded-full border border-[var(--line-strong)] px-4 py-2 text-sm font-semibold text-[var(--muted)]"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleCustomSave}
-              className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-semibold text-[var(--background)]"
             >
               Add technique
             </button>

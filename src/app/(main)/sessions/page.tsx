@@ -12,25 +12,25 @@ export default function SessionsPage() {
     <div className="space-y-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.4em] text-[var(--muted)]">
             Sessions
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight">Session history</h1>
-          <p className="text-sm text-zinc-600">
+          <h1 className="text-display text-4xl">Session history</h1>
+          <p className="text-sm text-[var(--muted)]">
             Review past training and see what you focused on.
           </p>
         </div>
         <Link
           href="/log"
-          className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          className="rounded-full bg-[var(--foreground)] px-4 py-2 text-sm font-semibold uppercase tracking-[0.2em] text-[var(--background)] transition hover:translate-y-[-1px]"
         >
           Log session
         </Link>
       </header>
 
       {sessions.length === 0 ? (
-        <div className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
-          <p className="text-sm text-zinc-600">
+        <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_60px_-40px_var(--shadow)]">
+          <p className="text-sm text-[var(--muted)]">
             No sessions yet. Log your first session to get started.
           </p>
         </div>
@@ -69,22 +69,22 @@ export default function SessionsPage() {
               <Link
                 key={session.id}
                 href={`/sessions/${session.id}`}
-                className="rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-200 hover:shadow-md"
+                className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_24px_60px_-40px_var(--shadow)] transition hover:-translate-y-0.5 hover:border-[var(--line-strong)]"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="text-lg font-semibold">
                       {format(new Date(session.date), "MMM d, yyyy")}
                     </h2>
-                    <p className="text-sm text-zinc-500">
+                    <p className="text-sm text-[var(--muted)]">
                       {session.sessionType.replace(/-/g, " ")} - {session.giOrNogi}
                     </p>
                   </div>
-                  <span className="text-sm font-semibold text-amber-600">
+                  <span className="text-sm font-semibold text-[var(--accent)]">
                     {techniquesCount} technique{techniquesCount === 1 ? "" : "s"}
                   </span>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-4 text-sm text-zinc-600">
+                <div className="mt-3 flex flex-wrap gap-4 text-sm text-[var(--muted)]">
                   <span>Rounds: {displayRounds}</span>
                   <span>Subs: +{displaySubsFor} / -{displaySubsAgainst}</span>
                 </div>

@@ -14,15 +14,15 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-zinc-900 text-white hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:ring-offset-2",
+    "bg-[var(--foreground)] text-[var(--background)] hover:translate-y-[-1px] focus:outline-none focus:ring-2 focus:ring-[var(--foreground)] focus:ring-offset-2",
   secondary:
-    "border border-zinc-200 text-zinc-600 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2",
+    "border border-[var(--line-strong)] text-[var(--foreground)] hover:bg-[var(--surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--line-strong)] focus:ring-offset-2",
   accent:
-    "border border-amber-200 text-amber-900 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2",
+    "bg-[var(--accent)] text-white shadow-[0_12px_32px_-18px_var(--glow)] hover:translate-y-[-1px] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2",
   danger:
-    "border border-red-200 text-red-600 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2",
+    "border border-red-200 text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2",
   ghost:
-    "text-zinc-500 hover:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2",
+    "text-[var(--muted)] hover:text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--line-strong)] focus:ring-offset-2",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -37,7 +37,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     { variant = "secondary", size = "md", className, disabled, ...props },
     ref,
   ) {
-    return (
+  return (
       <button
         ref={ref}
         type="button"

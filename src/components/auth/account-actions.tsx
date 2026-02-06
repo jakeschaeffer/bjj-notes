@@ -12,22 +12,24 @@ export function AccountActions() {
 
   if (loading) {
     return (
-      <div className="text-xs text-zinc-500">Checking session...</div>
+      <div className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+        Checking session...
+      </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="flex items-center gap-2 text-sm">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em]">
         <Link
           href="/login"
-          className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-100"
+          className="rounded-full border border-[var(--line-strong)] px-3 py-1 text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
         >
           Log in
         </Link>
         <Link
           href="/signup"
-          className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white transition hover:bg-zinc-800"
+          className="rounded-full bg-[var(--foreground)] px-3 py-1 text-[var(--background)] transition hover:translate-y-[-1px]"
         >
           Sign up
         </Link>
@@ -36,8 +38,8 @@ export function AccountActions() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-600">
-      <Link href="/settings" className="font-semibold text-zinc-700">
+    <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--muted)]">
+      <Link href="/settings" className="font-semibold text-[var(--foreground)]">
         {user.email ?? "Account"}
       </Link>
       <button
@@ -46,7 +48,7 @@ export function AccountActions() {
           await supabase.auth.signOut();
           router.push("/login");
         }}
-        className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100"
+        className="rounded-full border border-[var(--line-strong)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
       >
         Log out
       </button>
