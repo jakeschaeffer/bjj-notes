@@ -297,10 +297,7 @@ export default function LogSessionPage() {
 
   // Transcript/extraction state
   const [transcriptText, setTranscriptText] = useState("");
-  const [transcriptStatus, setTranscriptStatus] = useState<
-    "idle" | "loading" | "error"
-  >("idle");
-  const [transcriptMessage, setTranscriptMessage] = useState("");
+  // transcriptStatus/transcriptMessage tracked locally in fetchTranscript
   const [debugTranscriptInput, setDebugTranscriptInput] = useState("");
   const [debugStatus, setDebugStatus] = useState<
     "idle" | "running" | "success" | "error"
@@ -833,8 +830,6 @@ export default function LogSessionPage() {
   }
 
   async function fetchTranscript(transcriptId: string, token: string) {
-    setTranscriptStatus("loading");
-    setTranscriptMessage("");
     try {
       const response = await fetch(`/api/transcripts/${transcriptId}`, {
         headers: {
@@ -843,19 +838,13 @@ export default function LogSessionPage() {
       });
 
       if (!response.ok) {
-        setTranscriptStatus("error");
-        setTranscriptMessage("Unable to load transcript text.");
         return;
       }
 
       const data = (await response.json()) as { rawText?: string };
       setTranscriptText(data.rawText ?? "");
-      setTranscriptStatus("idle");
-    } catch (error) {
-      setTranscriptStatus("error");
-      setTranscriptMessage(
-        error instanceof Error ? error.message : "Unable to load transcript text.",
-      );
+    } catch {
+      // Transcript text is shown in debug modal; silently fail
     }
   }
 
@@ -1537,7 +1526,7 @@ export default function LogSessionPage() {
             <div className="space-y-4">
               <div className="flex justify-end">
                 <Button variant="secondary" size="sm" onClick={addTechnique}>
-                  Add technique
+                  Add entry
                 </Button>
               </div>
 
@@ -1554,7 +1543,9 @@ export default function LogSessionPage() {
                 <Card key={draft.id} variant="nested">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold text-zinc-700">
-                      Technique {indexValue + 1}
+                      {draft.positionId && !draft.techniqueId
+                        ? `Position note ${indexValue + 1}`
+                        : `Technique ${indexValue + 1}`}
                     </h3>
                     {techniqueDrafts.length > 1 ? (
                       <Button
@@ -1570,14 +1561,11 @@ export default function LogSessionPage() {
 
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2 text-sm font-medium text-zinc-700">
-                      <span>Position</span>
+                      <span>Position <span className="text-zinc-400 font-normal">(optional)</span></span>
                       <PositionPicker
                         value={draft.positionId}
                         onChange={(positionId) =>
-                          updateTechnique(draft.id, {
-                            positionId,
-                            techniqueId: null,
-                          })
+                          updateTechnique(draft.id, { positionId })
                         }
                         recentPositionIds={recentPositionIds}
                         index={index}
@@ -1890,13 +1878,6 @@ export default function LogSessionPage() {
                                   const technique = index.techniquesById.get(
                                     submission.techniqueId,
                                   );
-                                  const subPosition = submission.positionId
-                                    ? index.positionsById.get(submission.positionId)
-                                    : null;
-                                  const labelText = subPosition
-                                    ? `${technique?.name ?? "Unknown"} (${subPosition.name})`
-                                    : technique?.name ?? "Unknown submission";
-
                                   return (
                                     <span
                                       key={submission.id}
