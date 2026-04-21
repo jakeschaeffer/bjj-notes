@@ -207,9 +207,13 @@ const results = index.techniqueSearch.search(query);
 
 ## Branch Conventions
 
-When creating branches for Claude Code:
-- Format: `claude/{description}-{session-suffix}`
-- Example: `claude/fix-voice-recording-timeout-9n2Ve`
+All Claude Code work lands on the shared `dev` branch — do NOT create a new
+`claude/...` branch per task.
+
+- Commit directly to `dev` and `git push -u origin dev`.
+- `dev` is periodically merged into `main` via PR.
+- Only create a separate branch if the user explicitly asks for one (e.g.,
+  for a risky experiment that shouldn't block other work on `dev`).
 
 ---
 
