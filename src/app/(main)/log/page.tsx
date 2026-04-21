@@ -36,7 +36,7 @@ import type {
   SparringRound,
   Technique,
 } from "@/lib/types";
-import { createId } from "@/lib/utils";
+import { createId, parseLocalDate, todayLocalISO } from "@/lib/utils";
 
 const sessionTypes = [
   "regular-class",
@@ -47,13 +47,6 @@ const sessionTypes = [
   "drilling-only",
 ] as const;
 
-function todayLocalISO() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 type DraftTechnique = {
   id: string;
@@ -241,8 +234,13 @@ export default function LogSessionPage() {
     isUpdate: boolean;
   } | null>(null);
 
-  // Edit mode — set via ?edit=<id> or after a successful save so the user can keep editing
+  // Which session (if any) is currently loaded in the form.
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  // "new"  — brand-new session, form is editable
+  // "view" — an existing saved session is loaded, form is read-only
+  // "edit" — the user explicitly clicked Edit on a saved session
+  const [viewMode, setViewMode] = useState<"new" | "view" | "edit">("new");
+  const readOnly = viewMode === "view";
 
   // Explicit open-state for the notes/reflections accordion
   const [notesOpen, setNotesOpen] = useState(false);
@@ -360,6 +358,7 @@ export default function LogSessionPage() {
     }
     loadedEditIdRef.current = editSessionId;
     setEditingSessionId(editSessionId);
+    setViewMode("view");
     setDate(existing.date);
     const matchedType = sessionTypes.find((t) => t === existing.sessionType);
     if (matchedType) setSessionType(matchedType);
@@ -1088,9 +1087,16 @@ export default function LogSessionPage() {
     const { session, sparringRounds } = extraction;
 
     if (session.date) {
-      const parsed = new Date(session.date);
-      if (!isNaN(parsed.getTime())) {
-        setDate(parsed.toISOString().slice(0, 10));
+      if (/^\d{4}-\d{2}-\d{2}$/.test(session.date)) {
+        setDate(session.date);
+      } else {
+        const parsed = new Date(session.date);
+        if (!isNaN(parsed.getTime())) {
+          const y = parsed.getFullYear();
+          const m = String(parsed.getMonth() + 1).padStart(2, "0");
+          const d = String(parsed.getDate()).padStart(2, "0");
+          setDate(`${y}-${m}-${d}`);
+        }
       }
     }
     if (session.giOrNogi) {
@@ -1305,6 +1311,7 @@ export default function LogSessionPage() {
     setCustomSubmissionPositionId("");
     setEditingSessionId(null);
     loadedEditIdRef.current = null;
+    setViewMode("new");
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -1459,10 +1466,11 @@ export default function LogSessionPage() {
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
 
-    // Stay in edit mode so the user can continue refining. "Log another"
-    // in the summary banner is what triggers the full reset + new session id.
+    // After save, switch to read-only view so the user can't edit by accident.
+    // They must explicitly click Edit session to make further changes.
     setEditingSessionId(sessionId);
     loadedEditIdRef.current = sessionId;
+    setViewMode("view");
   }
 
   return (
@@ -1471,10 +1479,18 @@ export default function LogSessionPage() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
-            {editingSessionId ? "Editing Session" : "Session Log"}
+            {viewMode === "view"
+              ? "Saved Session"
+              : viewMode === "edit"
+                ? "Editing Session"
+                : "Session Log"}
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">
-            {editingSessionId ? "Edit session" : "Log a session"}
+            {viewMode === "view"
+              ? "Session detail"
+              : viewMode === "edit"
+                ? "Edit session"
+                : "Log a session"}
           </h1>
         </div>
         <Link
@@ -1486,7 +1502,8 @@ export default function LogSessionPage() {
       </header>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Voice Input Section - Always Prominent */}
+        {/* Voice Input Section - hidden when viewing a saved session */}
+        {!readOnly ? (
         <Card as="section" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -1559,6 +1576,7 @@ export default function LogSessionPage() {
             />
           ) : null}
         </Card>
+        ) : null}
 
         {/* Post-save summary */}
         {savedSummary && (
@@ -1567,7 +1585,7 @@ export default function LogSessionPage() {
               <div>
                 <p className="text-sm font-semibold text-emerald-700">
                   {savedSummary.isUpdate ? "Session updated" : "Session saved"} &mdash;{" "}
-                  {new Date(savedSummary.date).toLocaleDateString("en-US", {
+                  {parseLocalDate(savedSummary.date).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
                     year: "numeric",
@@ -1579,9 +1597,9 @@ export default function LogSessionPage() {
                   {savedSummary.rounds > 0 &&
                     ` · ${savedSummary.rounds} round${savedSummary.rounds !== 1 ? "s" : ""} · +${savedSummary.subsFor}/-${savedSummary.subsAgainst} subs`}
                 </p>
-                {editingSessionId === savedSummary.sessionId ? (
+                {editingSessionId === savedSummary.sessionId && viewMode === "view" ? (
                   <p className="mt-1 text-xs text-emerald-600">
-                    Still editing &mdash; save again to update, or choose below.
+                    Click Edit session below to change anything, or log a new one.
                   </p>
                 ) : null}
               </div>
@@ -1617,6 +1635,11 @@ export default function LogSessionPage() {
           </div>
         )}
 
+        <fieldset
+          disabled={readOnly}
+          className={`space-y-6 border-0 p-0 ${readOnly ? "[&_input]:bg-zinc-50 [&_textarea]:bg-zinc-50 [&_select]:bg-zinc-50" : ""}`}
+        >
+
         {/* Collapsible Metadata Section */}
         <div className="rounded-xl border border-zinc-200 bg-zinc-50">
           <button
@@ -1625,13 +1648,13 @@ export default function LogSessionPage() {
             className="flex w-full items-center justify-between px-5 py-3 text-left"
           >
             <span className="text-sm font-medium text-zinc-600">
-              Session details: {new Date(date).toLocaleDateString()} &bull;{" "}
+              Session details: {parseLocalDate(date).toLocaleDateString()} &bull;{" "}
               {sessionType.replace(/-/g, " ")} &bull; {giOrNogi.toUpperCase()}
               {durationMinutes ? ` • ${durationMinutes}min` : ""}
             </span>
             <span className="text-xs text-zinc-400">{showMetadata ? "Hide" : "Edit"}</span>
           </button>
-          {showMetadata && (
+          {(showMetadata || readOnly) && (
             <div className="border-t border-zinc-200 px-5 py-4">
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
                 <FormField
@@ -1699,13 +1722,15 @@ export default function LogSessionPage() {
                 : ""}
             </span>
           </button>
-          {showTechniques && (
+          {(showTechniques || readOnly) && (
             <div className="space-y-4">
-              <div className="flex justify-end">
-                <Button variant="secondary" size="sm" onClick={addTechnique}>
-                  Add technique
-                </Button>
-              </div>
+              {!readOnly ? (
+                <div className="flex justify-end">
+                  <Button variant="secondary" size="sm" onClick={addTechnique}>
+                    Add technique
+                  </Button>
+                </div>
+              ) : null}
 
             {techniqueDrafts.map((draft, indexValue) => {
               const technique = draft.techniqueId
@@ -1855,7 +1880,7 @@ export default function LogSessionPage() {
                 : ""}
             </span>
           </button>
-          {showSparring && (
+          {(showSparring || readOnly) && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {roundDrafts.length > 1 && (
@@ -1867,9 +1892,11 @@ export default function LogSessionPage() {
                     {compactRounds ? "Expand all" : "Compact view"}
                   </button>
                 )}
-                <Button variant="secondary" size="sm" onClick={addRound}>
-                  Add round
-                </Button>
+                {!readOnly ? (
+                  <Button variant="secondary" size="sm" onClick={addRound}>
+                    Add round
+                  </Button>
+                ) : null}
               </div>
 
             <div className="space-y-4">
@@ -2284,7 +2311,7 @@ export default function LogSessionPage() {
                   : "Add"}
             </span>
           </button>
-          {(notesOpen || notes.trim() || insights.trim() || goalsForNext.trim()) && (
+          {(notesOpen || readOnly || notes.trim() || insights.trim() || goalsForNext.trim()) && (
             <div className="border-t border-zinc-200 px-5 py-4 space-y-4">
               <FormField
                 as="textarea"
@@ -2865,14 +2892,27 @@ export default function LogSessionPage() {
           onNavigate={(type, id) => setTaxonomyCard({ type, id })}
         />
 
+        </fieldset>
+
         {formError ? (
           <p className="text-sm font-semibold text-red-500">{formError}</p>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-4">
-          <Button variant="primary" size="lg" type="submit">
-            {editingSessionId ? "Update session" : "Save session"}
-          </Button>
+          {viewMode === "view" ? (
+            <Button
+              variant="primary"
+              size="lg"
+              type="button"
+              onClick={() => setViewMode("edit")}
+            >
+              Edit session
+            </Button>
+          ) : (
+            <Button variant="primary" size="lg" type="submit">
+              {viewMode === "edit" ? "Update session" : "Save session"}
+            </Button>
+          )}
           {editingSessionId ? (
             <button
               type="button"
@@ -2890,7 +2930,7 @@ export default function LogSessionPage() {
           ) : null}
           {saved ? (
             <span className="text-sm font-semibold text-amber-600">
-              {editingSessionId ? "Session updated." : "Session saved."}
+              {viewMode === "edit" || editingSessionId ? "Session updated." : "Session saved."}
             </span>
           ) : null}
         </div>

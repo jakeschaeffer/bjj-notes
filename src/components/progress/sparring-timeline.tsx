@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { startOfWeek, format } from "date-fns";
 
+import { parseLocalDate } from "@/lib/utils";
 import type { Session } from "@/lib/types";
 
 interface SparringTimelineProps {
@@ -24,7 +25,7 @@ export function SparringTimeline({ sessions }: SparringTimelineProps) {
       if (session.sparringRounds.length === 0 && !session.legacySparring)
         continue;
 
-      const weekStart = startOfWeek(new Date(session.date), {
+      const weekStart = startOfWeek(parseLocalDate(session.date), {
         weekStartsOn: 1,
       });
       const weekKey = format(weekStart, "yyyy-MM-dd");

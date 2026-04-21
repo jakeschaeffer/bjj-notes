@@ -8,6 +8,7 @@ import {
   subDays,
 } from "date-fns";
 
+import { parseLocalDate } from "@/lib/utils";
 import type { Session } from "@/lib/types";
 
 interface StreakStatsProps {
@@ -19,7 +20,7 @@ function computeWeeklyStreak(sessions: Session[]): number {
 
   const weekSet = new Set<string>();
   for (const session of sessions) {
-    const week = startOfWeek(new Date(session.date), { weekStartsOn: 1 });
+    const week = startOfWeek(parseLocalDate(session.date), { weekStartsOn: 1 });
     weekSet.add(format(week, "yyyy-MM-dd"));
   }
 

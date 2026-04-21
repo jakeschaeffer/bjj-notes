@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 
+import { parseLocalDate } from "@/lib/utils";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
 import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 import { Modal } from "@/components/ui/modal";
@@ -272,7 +273,7 @@ export default function TechniquesPage() {
                         className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-600"
                       >
                         <p className="text-xs font-semibold text-zinc-400">
-                          {format(new Date(entry.date), "MMM d, yyyy")}
+                          {format(parseLocalDate(entry.date), "MMM d, yyyy")}
                         </p>
                         {entry.keyDetails.length > 0 ? (
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -382,7 +383,7 @@ export default function TechniquesPage() {
                         className="rounded-lg border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-600"
                       >
                         <p className="text-xs font-semibold text-zinc-400">
-                          {format(new Date(entry.date), "MMM d, yyyy")}
+                          {format(parseLocalDate(entry.date), "MMM d, yyyy")}
                         </p>
                         {entry.keyDetails.length > 0 ? (
                           <div className="mt-2 flex flex-wrap gap-2">

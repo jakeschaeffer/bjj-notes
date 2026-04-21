@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { format } from "date-fns";
 import Link from "next/link";
 
+import { parseLocalDate } from "@/lib/utils";
 import type { Session, Position } from "@/lib/types";
 import type { buildTaxonomyIndex } from "@/lib/taxonomy";
 
@@ -143,7 +144,7 @@ export function KnowledgeCard({
               className="block rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-600 transition hover:bg-amber-50"
             >
               <span className="text-xs font-medium text-zinc-400">
-                {format(new Date(note.date), "MMM d")}
+                {format(parseLocalDate(note.date), "MMM d")}
               </span>
               <span className="ml-2">
                 {note.notes.length > 100

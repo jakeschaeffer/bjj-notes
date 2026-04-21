@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { differenceInCalendarDays } from "date-fns";
 
+import { parseLocalDate } from "@/lib/utils";
 import type { Session, Position } from "@/lib/types";
 import type { buildTaxonomyIndex } from "@/lib/taxonomy";
 
@@ -42,7 +43,7 @@ export function PositionCoverageChart({
     const now = new Date();
 
     for (const session of sessions) {
-      const sessionDate = new Date(session.date);
+      const sessionDate = parseLocalDate(session.date);
 
       for (const technique of session.techniques) {
         if (technique.positionId) {

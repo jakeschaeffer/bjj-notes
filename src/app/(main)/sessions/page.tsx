@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { format } from "date-fns";
 
+import { parseLocalDate } from "@/lib/utils";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
 
 export default function SessionsPage() {
@@ -74,7 +75,7 @@ export default function SessionsPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="text-lg font-semibold">
-                      {format(new Date(session.date), "MMM d, yyyy")}
+                      {format(parseLocalDate(session.date), "MMM d, yyyy")}
                     </h2>
                     <p className="text-sm text-zinc-500">
                       {session.sessionType.replace(/-/g, " ")} - {session.giOrNogi}

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { differenceInCalendarDays } from "date-fns";
 
+import { parseLocalDate } from "@/lib/utils";
 import type { Session, Technique } from "@/lib/types";
 import type { buildTaxonomyIndex } from "@/lib/taxonomy";
 
@@ -46,7 +47,7 @@ export function TechniqueRecencyList({
 
     // Process sessions oldest-to-newest so we can slice last 5 easily
     const sorted = [...sessions].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      (a, b) => parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime(),
     );
 
     for (const session of sorted) {
@@ -75,7 +76,7 @@ export function TechniqueRecencyList({
 
       const recentDates = data.dates.slice(0, 5);
       const lastDate = recentDates[0];
-      const daysSince = differenceInCalendarDays(now, new Date(lastDate));
+      const daysSince = differenceInCalendarDays(now, parseLocalDate(lastDate));
 
       result.push({
         technique,

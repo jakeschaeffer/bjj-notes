@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 
+import { parseLocalDate } from "@/lib/utils";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
 import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 
@@ -68,7 +69,7 @@ export default function SessionDetailPage() {
             Session Detail
           </p>
           <h1 className="text-3xl font-semibold tracking-tight">
-            {format(new Date(session.date), "MMM d, yyyy")}
+            {format(parseLocalDate(session.date), "MMM d, yyyy")}
           </h1>
           <p className="text-sm text-zinc-600">
             {session.sessionType.replace(/-/g, " ")} - {session.giOrNogi}

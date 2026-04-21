@@ -10,6 +10,7 @@ import {
   subWeeks,
   startOfDay,
 } from "date-fns";
+import { parseLocalDate } from "@/lib/utils";
 import Link from "next/link";
 
 import type { Session } from "@/lib/types";
@@ -194,7 +195,7 @@ export function TrainingCalendar({ sessions }: TrainingCalendarProps) {
       {selectedDate && (
         <div className="rounded-xl border border-amber-100 bg-white p-4">
           <p className="text-sm font-semibold text-zinc-700">
-            {format(new Date(selectedDate), "EEEE, MMM d, yyyy")}
+            {format(parseLocalDate(selectedDate), "EEEE, MMM d, yyyy")}
           </p>
           {selectedSessions.length === 0 ? (
             <p className="mt-1 text-sm text-zinc-500">No training logged.</p>
