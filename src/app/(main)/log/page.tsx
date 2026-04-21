@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import Fuse from "fuse.js";
 
 import { PositionPicker } from "@/components/positions/position-picker";
@@ -62,6 +63,7 @@ type DraftTechnique = {
   notes: string;
   expanded: boolean;
   notesExpanded: boolean;
+  fromExtraction?: boolean;
 };
 
 type DraftRound = {
@@ -76,6 +78,7 @@ type DraftRound = {
   stuckPositions: string[];
   notes: string;
   notesExpanded: boolean;
+  fromExtraction?: boolean;
 };
 
 function createDraftTechnique(): DraftTechnique {
@@ -202,8 +205,11 @@ function getRecentIds<T>(
 }
 
 export default function LogSessionPage() {
-  const { sessions, addSession } = useLocalSessions();
+  const { sessions, addSession, updateSession } = useLocalSessions();
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editSessionId = searchParams?.get("edit") ?? null;
   const {
     index,
     tagSuggestions,
@@ -232,7 +238,14 @@ export default function LogSessionPage() {
     subsFor: number;
     subsAgainst: number;
     sessionId: string;
+    isUpdate: boolean;
   } | null>(null);
+
+  // Edit mode — set via ?edit=<id> or after a successful save so the user can keep editing
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+
+  // Explicit open-state for the notes/reflections accordion
+  const [notesOpen, setNotesOpen] = useState(false);
 
   // Taxonomy card state
   const [taxonomyCard, setTaxonomyCard] = useState<{
@@ -312,6 +325,10 @@ export default function LogSessionPage() {
     };
   }, []);
 
+  // Load an existing session when ?edit=<id> is present. Runs once per id so
+  // the form isn't overwritten when sessions reload after saves.
+  const loadedEditIdRef = useRef<string | null>(null);
+
   // Transcript/extraction state
   const [transcriptText, setTranscriptText] = useState("");
   const [transcriptStatus, setTranscriptStatus] = useState<
@@ -332,6 +349,73 @@ export default function LogSessionPage() {
   // Form state
   const [saved, setSaved] = useState(false);
   const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    if (!editSessionId || loadedEditIdRef.current === editSessionId) {
+      return;
+    }
+    const existing = sessions.find((s) => s.id === editSessionId);
+    if (!existing) {
+      return;
+    }
+    loadedEditIdRef.current = editSessionId;
+    setEditingSessionId(editSessionId);
+    setDate(existing.date);
+    const matchedType = sessionTypes.find((t) => t === existing.sessionType);
+    if (matchedType) setSessionType(matchedType);
+    setGiOrNogi(existing.giOrNogi);
+    setDurationMinutes(existing.durationMinutes ?? "");
+    setNotes(existing.notes);
+    setInsights(existing.insights.join(", "));
+    setGoalsForNext(existing.goalsForNext.join(", "));
+    setNotesOpen(
+      Boolean(
+        existing.notes ||
+          existing.insights.length > 0 ||
+          existing.goalsForNext.length > 0,
+      ),
+    );
+    const drafts: DraftTechnique[] = [];
+    for (const t of existing.techniques) {
+      drafts.push({
+        id: createId(),
+        positionId: t.positionId,
+        techniqueId: t.techniqueId,
+        keyDetails: t.keyDetails,
+        notes: t.notes,
+        expanded: t.keyDetails.length > 0 || Boolean(t.notes),
+        notesExpanded: Boolean(t.notes),
+      });
+    }
+    for (const p of existing.positionNotes) {
+      drafts.push({
+        id: createId(),
+        positionId: p.positionId,
+        techniqueId: null,
+        keyDetails: p.keyDetails,
+        notes: p.notes,
+        expanded: p.keyDetails.length > 0 || Boolean(p.notes),
+        notesExpanded: Boolean(p.notes),
+      });
+    }
+    setTechniqueDrafts(drafts.length > 0 ? drafts : [createDraftTechnique()]);
+    const rounds: DraftRound[] = existing.sparringRounds.map((r) => ({
+      id: r.id,
+      partnerName: r.partnerName ?? "",
+      partnerBelt: r.partnerBelt,
+      submissionsFor: r.submissionsFor,
+      submissionsAgainst: r.submissionsAgainst,
+      submissionsForCount: r.submissionsForCount,
+      submissionsAgainstCount: r.submissionsAgainstCount,
+      dominantPositions: r.dominantPositions,
+      stuckPositions: r.stuckPositions,
+      notes: r.notes,
+      notesExpanded: Boolean(r.notes),
+    }));
+    setRoundDrafts(rounds.length > 0 ? rounds : [createDraftRound()]);
+    setShowTechniques(true);
+    setShowSparring(true);
+  }, [editSessionId, sessions]);
 
   // Computed values
   const recentPositionIds = useMemo(() => {
@@ -425,7 +509,9 @@ export default function LogSessionPage() {
     (id: string, update: Partial<DraftTechnique>) => {
       setTechniqueDrafts((prev) =>
         prev.map((technique) =>
-          technique.id === id ? { ...technique, ...update } : technique,
+          technique.id === id
+            ? { ...technique, ...update, fromExtraction: false }
+            : technique,
         ),
       );
     },
@@ -443,7 +529,11 @@ export default function LogSessionPage() {
   const updateRound = useCallback(
     (id: string, update: Partial<DraftRound>) => {
       setRoundDrafts((prev) =>
-        prev.map((round) => (round.id === id ? { ...round, ...update } : round)),
+        prev.map((round) =>
+          round.id === id
+            ? { ...round, ...update, fromExtraction: false }
+            : round,
+        ),
       );
     },
     [],
@@ -602,8 +692,9 @@ export default function LogSessionPage() {
   ) {
     const ambiguousPositions = ambiguousSubmissions[techniqueId];
     if (ambiguousPositions?.length) {
+      // Sub-step of the submission picker — keep the picker modal open and swap
+      // its content to the position disambiguation view.
       setAmbiguousSubmission({ roundId, side, techniqueId });
-      setSubmissionPicker(null);
       setSubmissionSearch("");
       return;
     }
@@ -662,6 +753,8 @@ export default function LogSessionPage() {
       }),
     );
     setAmbiguousSubmission(null);
+    setSubmissionPicker(null);
+    setSubmissionSearch("");
   }
 
   async function handleAudioUpload() {
@@ -1024,6 +1117,7 @@ export default function LogSessionPage() {
           notes: tech.notes,
           expanded: tech.keyDetails.length > 0 || Boolean(tech.notes),
           notesExpanded: Boolean(tech.notes),
+          fromExtraction: true,
         });
       }
 
@@ -1036,6 +1130,7 @@ export default function LogSessionPage() {
           notes: note.notes,
           expanded: note.keyDetails.length > 0 || Boolean(note.notes),
           notesExpanded: Boolean(note.notes),
+          fromExtraction: true,
         });
       }
 
@@ -1084,6 +1179,7 @@ export default function LogSessionPage() {
           stuckPositions: [],
           notes: round.notes,
           notesExpanded: Boolean(round.notes),
+          fromExtraction: true,
         };
       });
 
@@ -1123,10 +1219,11 @@ export default function LogSessionPage() {
   }
 
   function openCustomSubmission(roundId: string, side: "for" | "against") {
+    // Sub-step of the submission picker — leave submissionPicker set so the
+    // same modal stays open, just with the custom-submission form.
     setCustomSubmissionTarget({ roundId, side });
     setCustomSubmissionName("");
     setCustomSubmissionPositionId("");
-    setSubmissionPicker(null);
     setSubmissionSearch("");
   }
 
@@ -1192,6 +1289,7 @@ export default function LogSessionPage() {
     setGiOrNogi("gi");
     setDurationMinutes("");
     setNotes("");
+    setNotesOpen(false);
     setInsights("");
     setGoalsForNext("");
     setTechniqueDrafts([createDraftTechnique()]);
@@ -1205,9 +1303,11 @@ export default function LogSessionPage() {
     setCustomSubmissionTarget(null);
     setCustomSubmissionName("");
     setCustomSubmissionPositionId("");
+    setEditingSessionId(null);
+    loadedEditIdRef.current = null;
   }
 
-  function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setFormError("");
     if (!user) {
@@ -1224,7 +1324,11 @@ export default function LogSessionPage() {
     );
 
     const now = new Date().toISOString();
-    const sessionId = createId();
+    const isUpdate = Boolean(editingSessionId);
+    const existing = editingSessionId
+      ? sessions.find((s) => s.id === editingSessionId)
+      : null;
+    const sessionId = existing?.id ?? createId();
 
     // Techniques can now be logged with or without a position
     const techniquesDrilled: SessionTechnique[] = filledDrafts
@@ -1276,6 +1380,31 @@ export default function LogSessionPage() {
         notes: round.notes.trim(),
       }));
 
+    const trimmedNotes = notes.trim();
+    const insightsList = insights
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const goalsList = goalsForNext
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const hasContent =
+      techniquesDrilled.length > 0 ||
+      positionNotes.length > 0 ||
+      sparringRounds.length > 0 ||
+      trimmedNotes.length > 0 ||
+      insightsList.length > 0 ||
+      goalsList.length > 0;
+
+    if (!hasContent) {
+      setFormError(
+        "Add at least one technique, sparring round, or note before saving.",
+      );
+      return;
+    }
+
     const session: Session = {
       id: sessionId,
       userId: user.id,
@@ -1287,20 +1416,22 @@ export default function LogSessionPage() {
       techniques: techniquesDrilled,
       positionNotes,
       sparringRounds,
-      notes: notes.trim(),
-      insights: insights
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      goalsForNext: goalsForNext
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      createdAt: now,
+      notes: trimmedNotes,
+      insights: insightsList,
+      goalsForNext: goalsList,
+      createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
 
-    addSession(session);
+    const result = isUpdate
+      ? await updateSession(session)
+      : await addSession(session);
+
+    if (!result.ok) {
+      setFormError(result.error || "Could not save. Please try again.");
+      return;
+    }
+
     recordTechniqueProgress(
       techniquesDrilled.map((item) => item.techniqueId),
       now,
@@ -1323,10 +1454,15 @@ export default function LogSessionPage() {
       subsFor: sparringRounds.reduce((sum, r) => sum + r.submissionsForCount, 0),
       subsAgainst: sparringRounds.reduce((sum, r) => sum + r.submissionsAgainstCount, 0),
       sessionId,
+      isUpdate,
     });
     setSaved(true);
-    resetForm();
     setTimeout(() => setSaved(false), 1500);
+
+    // Stay in edit mode so the user can continue refining. "Log another"
+    // in the summary banner is what triggers the full reset + new session id.
+    setEditingSessionId(sessionId);
+    loadedEditIdRef.current = sessionId;
   }
 
   return (
@@ -1335,9 +1471,11 @@ export default function LogSessionPage() {
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
-            Session Log
+            {editingSessionId ? "Editing Session" : "Session Log"}
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight">Log a session</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {editingSessionId ? "Edit session" : "Log a session"}
+          </h1>
         </div>
         <Link
           href="/sessions"
@@ -1428,7 +1566,7 @@ export default function LogSessionPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-emerald-700">
-                  Session saved &mdash;{" "}
+                  {savedSummary.isUpdate ? "Session updated" : "Session saved"} &mdash;{" "}
                   {new Date(savedSummary.date).toLocaleDateString("en-US", {
                     month: "short",
                     day: "numeric",
@@ -1441,6 +1579,11 @@ export default function LogSessionPage() {
                   {savedSummary.rounds > 0 &&
                     ` · ${savedSummary.rounds} round${savedSummary.rounds !== 1 ? "s" : ""} · +${savedSummary.subsFor}/-${savedSummary.subsAgainst} subs`}
                 </p>
+                {editingSessionId === savedSummary.sessionId ? (
+                  <p className="mt-1 text-xs text-emerald-600">
+                    Still editing &mdash; save again to update, or choose below.
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -1450,7 +1593,7 @@ export default function LogSessionPage() {
                 Dismiss
               </button>
             </div>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               <Link
                 href={`/sessions/${savedSummary.sessionId}`}
                 className="rounded-full border border-emerald-300 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
@@ -1459,7 +1602,13 @@ export default function LogSessionPage() {
               </Link>
               <button
                 type="button"
-                onClick={() => setSavedSummary(null)}
+                onClick={() => {
+                  resetForm();
+                  setSavedSummary(null);
+                  if (editSessionId) {
+                    router.replace("/log");
+                  }
+                }}
                 className="rounded-full border border-emerald-300 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
               >
                 Log another
@@ -1570,9 +1719,16 @@ export default function LogSessionPage() {
               return (
                 <Card key={draft.id} variant="nested">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold text-zinc-700">
-                      Technique {indexValue + 1}
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold text-zinc-700">
+                        Technique {indexValue + 1}
+                      </h3>
+                      {draft.fromExtraction ? (
+                        <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                          Auto-filled · verify
+                        </span>
+                      ) : null}
+                    </div>
                     {techniqueDrafts.length > 1 ? (
                       <Button
                         variant="ghost"
@@ -1756,6 +1912,12 @@ export default function LogSessionPage() {
                       <span className="w-8 shrink-0 font-semibold text-zinc-400">
                         R{roundIndex + 1}
                       </span>
+                      {round.fromExtraction ? (
+                        <span
+                          title="Auto-filled — verify"
+                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+                        />
+                      ) : null}
                       <span className="flex min-w-0 flex-1 items-center gap-2">
                         {belt && (
                           <span
@@ -1781,9 +1943,16 @@ export default function LogSessionPage() {
                 return (
                   <Card key={round.id} variant="nested">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <h3 className="text-sm font-semibold text-zinc-700">
-                        Round {roundIndex + 1}
-                      </h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-semibold text-zinc-700">
+                          Round {roundIndex + 1}
+                        </h3>
+                        {round.fromExtraction ? (
+                          <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                            Auto-filled · verify
+                          </span>
+                        ) : null}
+                      </div>
                       <div className="flex items-center gap-2">
                         {compactRounds && (
                           <button
@@ -2098,7 +2267,7 @@ export default function LogSessionPage() {
         <div className="rounded-xl border border-zinc-200 bg-zinc-50">
           <button
             type="button"
-            onClick={() => setNotes(notes ? notes : " ")}
+            onClick={() => setNotesOpen((open) => !open)}
             className="flex w-full items-center justify-between px-5 py-3 text-left"
           >
             <span className="text-sm font-medium text-zinc-600">
@@ -2108,15 +2277,19 @@ export default function LogSessionPage() {
                 : ""}
             </span>
             <span className="text-xs text-zinc-400">
-              {notes.trim() || insights.trim() || goalsForNext.trim() ? "Edit" : "Add"}
+              {notesOpen
+                ? "Hide"
+                : notes.trim() || insights.trim() || goalsForNext.trim()
+                  ? "Edit"
+                  : "Add"}
             </span>
           </button>
-          {(notes.trim() || insights.trim() || goalsForNext.trim() || notes === " ") && (
+          {(notesOpen || notes.trim() || insights.trim() || goalsForNext.trim()) && (
             <div className="border-t border-zinc-200 px-5 py-4 space-y-4">
               <FormField
                 as="textarea"
                 label="Session notes"
-                value={notes === " " ? "" : notes}
+                value={notes}
                 onChange={(event) => setNotes(event.target.value)}
                 placeholder="What did you learn today?"
               />
@@ -2178,217 +2351,238 @@ export default function LogSessionPage() {
           </div>
         </Modal>
 
+        {/* Unified submission picker — search → (optional) disambiguate or create custom, without stacking modals */}
         <Modal
           open={Boolean(submissionPicker)}
           onClose={() => {
             setSubmissionPicker(null);
             setSubmissionSearch("");
+            setAmbiguousSubmission(null);
+            setCustomSubmissionTarget(null);
+            setCustomSubmissionName("");
+            setCustomSubmissionPositionId("");
           }}
-          title="Select submission"
-        >
-          <div className="space-y-4">
-            <input
-              value={submissionSearch}
-              onChange={(event) => setSubmissionSearch(event.target.value)}
-              placeholder="Search submissions"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-            />
-
-            {submissionSearch.trim() ? (
-              <div className="space-y-2">
-                {submissionResults.length === 0 ? (
-                  <p className="text-sm text-zinc-500">No submissions found.</p>
-                ) : (
-                  submissionResults.map((technique) => (
-                    <button
-                      key={technique.id}
-                      type="button"
-                      onClick={() =>
-                        submissionPicker &&
-                        handleSubmissionSelect(
-                          submissionPicker.roundId,
-                          submissionPicker.side,
-                          technique.id,
-                        )
-                      }
-                      className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                    >
-                      <span>{technique.name}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {commonSubmissions.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-                      Common
-                    </p>
-                    {commonSubmissions.map((technique) => (
-                      <button
-                        key={technique.id}
-                        type="button"
-                        onClick={() =>
-                          submissionPicker &&
-                          handleSubmissionSelect(
-                            submissionPicker.roundId,
-                            submissionPicker.side,
-                            technique.id,
-                          )
-                        }
-                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                      >
-                        <span>{technique.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-
-                {recentSubmissions.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-                      Recent
-                    </p>
-                    {recentSubmissions.map((technique) => (
-                      <button
-                        key={technique.id}
-                        type="button"
-                        onClick={() =>
-                          submissionPicker &&
-                          handleSubmissionSelect(
-                            submissionPicker.roundId,
-                            submissionPicker.side,
-                            technique.id,
-                          )
-                        }
-                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                      >
-                        <span>{technique.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-                    All submissions
-                  </p>
-                  {submissionList.map((technique) => (
-                    <button
-                      key={technique.id}
-                      type="button"
-                      onClick={() =>
-                        submissionPicker &&
-                        handleSubmissionSelect(
-                          submissionPicker.roundId,
-                          submissionPicker.side,
-                          technique.id,
-                        )
-                      }
-                      className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                    >
-                      <span>{technique.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {submissionPicker ? (
-              <button
-                type="button"
-                onClick={() =>
-                  openCustomSubmission(
-                    submissionPicker.roundId,
-                    submissionPicker.side,
-                  )
-                }
-                className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-600"
-              >
-                Add custom submission
-              </button>
-            ) : null}
-          </div>
-        </Modal>
-
-        <Modal
-          open={Boolean(customSubmissionTarget)}
-          onClose={() => setCustomSubmissionTarget(null)}
-          title="Add custom submission"
-        >
-          <div className="space-y-4">
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
-              Name
-              <input
-                value={customSubmissionName}
-                onChange={(event) => setCustomSubmissionName(event.target.value)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="Armbar"
-              />
-            </label>
-            <label className="space-y-2 text-sm font-medium text-zinc-700">
-              Starting position
-              <select
-                value={customSubmissionPositionId}
-                onChange={(event) => setCustomSubmissionPositionId(event.target.value)}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-              >
-                <option value="">Select position</option>
-                {index.positionsInTreeOrder.map((position) => (
-                  <option key={position.id} value={position.id}>
-                    {index.getFullPath(position.id)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setCustomSubmissionTarget(null)}
-                className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCustomSubmissionSave}
-                className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Add submission
-              </button>
-            </div>
-          </div>
-        </Modal>
-
-        <Modal
-          open={Boolean(ambiguousSubmission)}
-          onClose={() => setAmbiguousSubmission(null)}
           title={
-            ambiguousTechnique
-              ? `${ambiguousTechnique.name} position`
-              : "Submission position"
+            customSubmissionTarget
+              ? "Add custom submission"
+              : ambiguousSubmission
+                ? ambiguousTechnique
+                  ? `${ambiguousTechnique.name} — from where?`
+                  : "From where?"
+                : "Select submission"
           }
         >
-          <div className="space-y-3">
-            {ambiguousOptions.map((positionId) => (
+          {customSubmissionTarget ? (
+            <div className="space-y-4">
               <button
-                key={positionId}
                 type="button"
-                onClick={() => handleAmbiguousPositionSelect(positionId)}
-                className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                onClick={() => {
+                  setCustomSubmissionTarget(null);
+                  setCustomSubmissionName("");
+                  setCustomSubmissionPositionId("");
+                }}
+                className="text-xs font-semibold text-zinc-500"
               >
-                <span>{index.positionsById.get(positionId)?.name ?? positionId}</span>
+                ← Back to search
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => handleAmbiguousPositionSelect(null)}
-              className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-500"
-            >
-              Skip position
-            </button>
-          </div>
+              <label className="space-y-2 text-sm font-medium text-zinc-700">
+                Name
+                <input
+                  value={customSubmissionName}
+                  onChange={(event) => setCustomSubmissionName(event.target.value)}
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                  placeholder="Armbar"
+                />
+              </label>
+              <label className="space-y-2 text-sm font-medium text-zinc-700">
+                Starting position
+                <select
+                  value={customSubmissionPositionId}
+                  onChange={(event) => setCustomSubmissionPositionId(event.target.value)}
+                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+                >
+                  <option value="">Select position</option>
+                  {index.positionsInTreeOrder.map((position) => (
+                    <option key={position.id} value={position.id}>
+                      {index.getFullPath(position.id)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomSubmissionTarget(null);
+                    setCustomSubmissionName("");
+                    setCustomSubmissionPositionId("");
+                  }}
+                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCustomSubmissionSave}
+                  className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Add submission
+                </button>
+              </div>
+            </div>
+          ) : ambiguousSubmission ? (
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setAmbiguousSubmission(null)}
+                className="text-xs font-semibold text-zinc-500"
+              >
+                ← Back to search
+              </button>
+              {ambiguousOptions.map((positionId) => (
+                <button
+                  key={positionId}
+                  type="button"
+                  onClick={() => handleAmbiguousPositionSelect(positionId)}
+                  className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                >
+                  <span>{index.positionsById.get(positionId)?.name ?? positionId}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => handleAmbiguousPositionSelect(null)}
+                className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-500"
+              >
+                Skip position
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <input
+                value={submissionSearch}
+                onChange={(event) => setSubmissionSearch(event.target.value)}
+                placeholder="Search submissions"
+                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
+              />
+
+              {submissionSearch.trim() ? (
+                <div className="space-y-2">
+                  {submissionResults.length === 0 ? (
+                    <p className="text-sm text-zinc-500">No submissions found.</p>
+                  ) : (
+                    submissionResults.map((technique) => (
+                      <button
+                        key={technique.id}
+                        type="button"
+                        onClick={() =>
+                          submissionPicker &&
+                          handleSubmissionSelect(
+                            submissionPicker.roundId,
+                            submissionPicker.side,
+                            technique.id,
+                          )
+                        }
+                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                      >
+                        <span>{technique.name}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {commonSubmissions.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                        Common
+                      </p>
+                      {commonSubmissions.map((technique) => (
+                        <button
+                          key={technique.id}
+                          type="button"
+                          onClick={() =>
+                            submissionPicker &&
+                            handleSubmissionSelect(
+                              submissionPicker.roundId,
+                              submissionPicker.side,
+                              technique.id,
+                            )
+                          }
+                          className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                        >
+                          <span>{technique.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {recentSubmissions.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                        Recent
+                      </p>
+                      {recentSubmissions.map((technique) => (
+                        <button
+                          key={technique.id}
+                          type="button"
+                          onClick={() =>
+                            submissionPicker &&
+                            handleSubmissionSelect(
+                              submissionPicker.roundId,
+                              submissionPicker.side,
+                              technique.id,
+                            )
+                          }
+                          className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                        >
+                          <span>{technique.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
+                      All submissions
+                    </p>
+                    {submissionList.map((technique) => (
+                      <button
+                        key={technique.id}
+                        type="button"
+                        onClick={() =>
+                          submissionPicker &&
+                          handleSubmissionSelect(
+                            submissionPicker.roundId,
+                            submissionPicker.side,
+                            technique.id,
+                          )
+                        }
+                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
+                      >
+                        <span>{technique.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {submissionPicker ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    openCustomSubmission(
+                      submissionPicker.roundId,
+                      submissionPicker.side,
+                    )
+                  }
+                  className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-600"
+                >
+                  Can&apos;t find it? Add custom submission
+                </button>
+              ) : null}
+            </div>
+          )}
         </Modal>
 
         <Modal
@@ -2677,11 +2871,26 @@ export default function LogSessionPage() {
 
         <div className="flex flex-wrap items-center gap-4">
           <Button variant="primary" size="lg" type="submit">
-            Save session
+            {editingSessionId ? "Update session" : "Save session"}
           </Button>
+          {editingSessionId ? (
+            <button
+              type="button"
+              onClick={() => {
+                resetForm();
+                setSavedSummary(null);
+                if (editSessionId) {
+                  router.replace("/log");
+                }
+              }}
+              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
+            >
+              Start new session
+            </button>
+          ) : null}
           {saved ? (
             <span className="text-sm font-semibold text-amber-600">
-              Session saved.
+              {editingSessionId ? "Session updated." : "Session saved."}
             </span>
           ) : null}
         </div>

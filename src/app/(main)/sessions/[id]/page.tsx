@@ -81,9 +81,18 @@ export default function SessionDetailPage() {
           >
             Back
           </Link>
+          <Link
+            href={`/log?edit=${session.id}`}
+            className="rounded-full bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-600"
+          >
+            Edit
+          </Link>
           <button
             type="button"
             onClick={() => {
+              if (!window.confirm("Delete this session? This cannot be undone.")) {
+                return;
+              }
               deleteSession(session.id);
               router.push("/sessions");
             }}

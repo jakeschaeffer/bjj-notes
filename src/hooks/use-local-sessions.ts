@@ -74,9 +74,9 @@ export function useLocalSessions() {
   }, [authLoading, user]);
 
   const addSession = useCallback(
-    async (session: Session) => {
+    async (session: Session): Promise<{ ok: true } | { ok: false; error: string }> => {
       if (!user) {
-        return;
+        return { ok: false, error: "Not signed in." };
       }
 
       const payload = { ...session, userId: user.id };
@@ -91,7 +91,7 @@ export function useLocalSessions() {
 
       if (error) {
         console.error("Failed to save session", error.message);
-        return;
+        return { ok: false, error: error.message };
       }
 
       setSessions((prev) => {
@@ -99,14 +99,15 @@ export function useLocalSessions() {
         next.push(payload);
         return sortSessions(next);
       });
+      return { ok: true };
     },
     [user],
   );
 
   const updateSession = useCallback(
-    async (session: Session) => {
+    async (session: Session): Promise<{ ok: true } | { ok: false; error: string }> => {
       if (!user) {
-        return;
+        return { ok: false, error: "Not signed in." };
       }
 
       const payload = { ...session, userId: user.id };
@@ -121,7 +122,7 @@ export function useLocalSessions() {
 
       if (error) {
         console.error("Failed to update session", error.message);
-        return;
+        return { ok: false, error: error.message };
       }
 
       setSessions((prev) => {
@@ -129,6 +130,7 @@ export function useLocalSessions() {
         next.push(payload);
         return sortSessions(next);
       });
+      return { ok: true };
     },
     [user],
   );
