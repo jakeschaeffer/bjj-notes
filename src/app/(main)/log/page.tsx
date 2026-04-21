@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Fuse from "fuse.js";
 
@@ -45,6 +45,14 @@ const sessionTypes = [
   "seminar",
   "drilling-only",
 ] as const;
+
+function todayLocalISO() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 type DraftTechnique = {
   id: string;
@@ -233,9 +241,7 @@ export default function LogSessionPage() {
   } | null>(null);
 
   // Session metadata
-  const [date, setDate] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  const [date, setDate] = useState(() => todayLocalISO());
   const [sessionType, setSessionType] = useState<
     (typeof sessionTypes)[number]
   >(sessionTypes[0]);
@@ -294,6 +300,17 @@ export default function LogSessionPage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const [audioLevels, setAudioLevels] = useState<number[]>([0, 0, 0, 0, 0]);
+
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      mediaRecorderRef.current?.stop();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      audioContextRef.current?.close();
+    };
+  }, []);
 
   // Transcript/extraction state
   const [transcriptText, setTranscriptText] = useState("");
@@ -1170,7 +1187,7 @@ export default function LogSessionPage() {
     : null;
 
   function resetForm() {
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(todayLocalISO());
     setSessionType(sessionTypes[0]);
     setGiOrNogi("gi");
     setDurationMinutes("");
@@ -1890,12 +1907,6 @@ export default function LogSessionPage() {
                                   const technique = index.techniquesById.get(
                                     submission.techniqueId,
                                   );
-                                  const subPosition = submission.positionId
-                                    ? index.positionsById.get(submission.positionId)
-                                    : null;
-                                  const labelText = subPosition
-                                    ? `${technique?.name ?? "Unknown"} (${subPosition.name})`
-                                    : technique?.name ?? "Unknown submission";
 
                                   return (
                                     <span
@@ -2607,6 +2618,13 @@ export default function LogSessionPage() {
                 ) : null}
               </div>
             </div>
+
+            {transcriptStatus === "loading" && (
+              <p className="text-xs text-zinc-500">Loading transcript...</p>
+            )}
+            {transcriptStatus === "error" && transcriptMessage && (
+              <p className="text-xs font-semibold text-red-600">{transcriptMessage}</p>
+            )}
 
             {(transcriptText || rawExtraction || matchedExtraction) && (
               <>

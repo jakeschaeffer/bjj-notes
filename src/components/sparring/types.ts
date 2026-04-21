@@ -1,4 +1,5 @@
-import type { BeltLevel, RoundSubmission, Partner } from "@/lib/types";
+import type { BeltLevel, RoundSubmission } from "@/lib/types";
+import { createId } from "@/lib/utils";
 
 export type DraftRound = {
   id: string;
@@ -34,7 +35,6 @@ export function getBeltOption(belt: BeltLevel | null): BeltOption | undefined {
 }
 
 export function createDraftRound(): DraftRound {
-  const { createId } = require("@/lib/utils");
   return {
     id: createId(),
     partnerName: "",

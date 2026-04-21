@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from "react";
 
-import type { BeltLevel, Partner, RoundSubmission, Technique } from "@/lib/types";
+import type { Partner, RoundSubmission, Technique } from "@/lib/types";
 import type { buildTaxonomyIndex } from "@/lib/taxonomy";
+import { createId } from "@/lib/utils";
 
 type TaxonomyIndex = ReturnType<typeof buildTaxonomyIndex>;
 import { Button, Card, Modal, Tag } from "@/components/ui";
@@ -162,7 +163,6 @@ export function SparringRoundSection({
 
   const addSubmission = useCallback(
     (roundId: string, side: "for" | "against", techniqueId: string, positionId: string | null) => {
-      const { createId } = require("@/lib/utils");
       const submission: RoundSubmission = {
         id: createId(),
         techniqueId,

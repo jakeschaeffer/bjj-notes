@@ -37,7 +37,7 @@ function isAdminEmail(email: string | undefined | null) {
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
   if (allowlist.length === 0) {
-    return true;
+    return false;
   }
   return allowlist.includes(email.toLowerCase());
 }
