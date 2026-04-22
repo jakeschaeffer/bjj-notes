@@ -9,27 +9,18 @@ import {
 } from "@/components/taxonomy/taxonomy-card";
 import type { Position, Technique } from "@/lib/types";
 
-const perspectiveConfig = {
-  top: {
-    label: "Top / Offensive",
-    headerColor: "text-amber-700",
-    dot: "bg-amber-400",
-  },
-  bottom: {
-    label: "Bottom / Defensive",
-    headerColor: "text-blue-700",
-    dot: "bg-blue-400",
-  },
-  neutral: {
-    label: "Neutral",
-    headerColor: "text-zinc-600",
-    dot: "bg-zinc-400",
-  },
-} as const;
-
 type TaxIndex = ReturnType<typeof useUserTaxonomy>["index"];
 
-function PositionNode({
+const PERSPECTIVES: Array<{
+  key: "top" | "neutral" | "bottom";
+  label: string;
+}> = [
+  { key: "top", label: "Top / Offensive" },
+  { key: "neutral", label: "Neutral" },
+  { key: "bottom", label: "Bottom / Defensive" },
+];
+
+function PositionCard({
   position,
   childPositions,
   techniques,
@@ -50,7 +41,6 @@ function PositionNode({
   const hasChildren = childPositions.length > 0;
   const directTechCount = techniques.length;
 
-  // Count all techniques in subtree
   const subtreeTechCount = useMemo(() => {
     let count = directTechCount;
     const stack = [...childPositions];
@@ -64,78 +54,62 @@ function PositionNode({
   }, [childPositions, directTechCount, index]);
 
   return (
-    <div
-      className={`rounded-xl border ${
-        depth === 0
-          ? "border-zinc-200 bg-white shadow-sm"
-          : "border-zinc-100 bg-zinc-50/50"
-      }`}
-    >
-      <div className="flex items-center gap-3 px-4 py-3">
-        {hasChildren ? (
-          <button
-            type="button"
-            onClick={() => setExpanded(!expanded)}
-            className={`text-xs text-zinc-400 transition-transform ${
-              expanded ? "rotate-90" : ""
-            }`}
-          >
-            ▶
-          </button>
-        ) : (
-          <span className="w-3" />
-        )}
-        <button
-          type="button"
-          onClick={() =>
-            hasChildren ? setExpanded(!expanded) : onPositionClick(position.id)
-          }
-          className="flex flex-1 items-center gap-2 text-left text-sm font-semibold text-zinc-800"
-        >
-          {position.name}
-        </button>
+    <div className={`pos-card ${depth > 0 ? "pos-card-nested" : ""}`}>
+      <div className="pos-card-head">
+        <span className="pos-pill">{position.name}</span>
         {subtreeTechCount > 0 && (
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
+          <span className="tech-count">
             {subtreeTechCount} tech
           </span>
         )}
         <button
           type="button"
-          onClick={() => onPositionClick(position.id)}
-          className="text-xs text-amber-600 hover:underline"
+          className="pos-info"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPositionClick(position.id);
+          }}
+          aria-label="Position details"
         >
-          Details
+          ⓘ
         </button>
+        {hasChildren ? (
+          <button
+            type="button"
+            className={`pos-chevron ${expanded ? "is-open" : ""}`}
+            onClick={() => setExpanded((v) => !v)}
+            aria-label={expanded ? "Collapse" : "Expand"}
+          >
+            ▸
+          </button>
+        ) : (
+          <span className="pos-chevron-spacer" />
+        )}
       </div>
 
       {expanded && (
-        <div className="space-y-2 px-4 pb-4">
-          {/* Direct techniques */}
+        <div className="pos-card-body">
           {directTechCount > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="tech-chips">
               {techniques.map((t) => (
                 <button
                   key={t.id}
                   type="button"
+                  className="tech-chip"
                   onClick={() => onTechniqueClick(t.id)}
-                  className="rounded-full border border-amber-100 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 transition hover:border-amber-300 hover:bg-amber-100"
                 >
                   {t.name}
                 </button>
               ))}
             </div>
           )}
-
-          {/* Child positions */}
-          {childPositions.length > 0 && (
-            <div className="space-y-2">
+          {hasChildren && (
+            <div className="child-stack">
               {childPositions.map((child) => {
                 const grandchildren = index.getChildren(child.id);
-                const childTechniques = index.getTechniquesByPosition(
-                  child.id,
-                );
+                const childTechniques = index.getTechniquesByPosition(child.id);
                 return (
-                  <PositionNode
+                  <PositionCard
                     key={child.id}
                     position={child}
                     childPositions={grandchildren}
@@ -158,8 +132,9 @@ function PositionNode({
 export default function TaxonomyPage() {
   const [query, setQuery] = useState("");
   const { index } = useUserTaxonomy();
+
   const results = query.trim()
-    ? index.techniqueSearch.search(query.trim()).map((result) => result.item)
+    ? index.techniqueSearch.search(query.trim()).map((r) => r.item)
     : [];
 
   const [taxonomyCard, setTaxonomyCard] = useState<{
@@ -171,7 +146,6 @@ export default function TaxonomyPage() {
     setTaxonomyCard({ type, id });
   }
 
-  // Group root positions by perspective
   const perspectiveGroups = useMemo(() => {
     const groups: Record<"top" | "bottom" | "neutral", Position[]> = {
       top: [],
@@ -185,146 +159,119 @@ export default function TaxonomyPage() {
   }, [index.rootPositions]);
 
   return (
-    <div className="space-y-8">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
-          Taxonomy
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight">Position map</h1>
-        <p className="text-sm text-zinc-600">
-          BJJ positions grouped by perspective. Click to explore techniques.
-        </p>
-      </header>
-
-      {/* Stats */}
-      <section className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-            Positions
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {index.positions.length}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-            Techniques
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {index.techniques.length}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-            Root positions
-          </p>
-          <p className="mt-2 text-3xl font-semibold text-zinc-900">
-            {index.rootPositions.length}
-          </p>
-        </div>
-      </section>
-
-      {/* Technique search */}
-      <section className="rounded-2xl border border-amber-100 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold">Technique search</h2>
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search: kimura, sweep, guard..."
-          className="mt-3 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-        />
-        {query.trim().length > 0 && (
-          <div className="mt-4 space-y-2">
-            {results.length === 0 ? (
-              <p className="text-sm text-zinc-500">No matches found.</p>
-            ) : (
-              results.map((technique) => {
-                const fromPosition = index.positionsById.get(
-                  technique.positionFromId,
-                );
-                return (
-                  <div
-                    key={technique.id}
-                    className="rounded-xl border border-zinc-100 bg-zinc-50 p-3"
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openTaxonomyCard("technique", technique.id)
-                      }
-                      className="text-sm font-semibold text-zinc-800 hover:text-amber-600 hover:underline"
-                    >
-                      {technique.name}
-                    </button>
-                    <div className="text-xs text-zinc-500">
-                      From{" "}
-                      {fromPosition ? (
-                        <ClickableTaxonomy
-                          type="position"
-                          id={fromPosition.id}
-                          name={fromPosition.name}
-                          onClick={openTaxonomyCard}
-                        />
-                      ) : (
-                        "Unknown"
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
+    <>
+      <style>{css}</style>
+      <div className="v2tax-root">
+        <div className="v2tax-shell">
+          <div className="top">
+            <div>
+              <div className="d">Taxonomy.</div>
+              <div className="sub">
+                {index.positions.length} positions ·{" "}
+                {index.techniques.length} techniques
+              </div>
+            </div>
           </div>
-        )}
-      </section>
 
-      {/* Perspective-grouped position map */}
-      {(["top", "neutral", "bottom"] as const).map((perspective) => {
-        const positions = perspectiveGroups[perspective];
-        if (positions.length === 0) return null;
-        const config = perspectiveConfig[perspective];
-
-        return (
-          <section key={perspective} className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span
-                className={`h-2.5 w-2.5 rounded-full ${config.dot}`}
-              />
-              <h2 className={`text-lg font-semibold ${config.headerColor}`}>
-                {config.label}
-              </h2>
-              <span className="text-xs text-zinc-400">
-                {positions.length} position
-                {positions.length !== 1 ? "s" : ""}
-              </span>
+          <div className="v2tax-totals">
+            <div className="v2tax-cell">
+              <div className="k">Positions</div>
+              <div className="v">{index.positions.length}</div>
             </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {positions.map((position) => {
-                const children = index.getChildren(position.id);
-                const techniques = index.getTechniquesByPosition(position.id);
-                return (
-                  <PositionNode
-                    key={position.id}
-                    position={position}
-                    childPositions={children}
-                    techniques={techniques}
-                    index={index}
-                    onPositionClick={(id) =>
-                      openTaxonomyCard("position", id)
-                    }
-                    onTechniqueClick={(id) =>
-                      openTaxonomyCard("technique", id)
-                    }
-                    depth={0}
-                  />
-                );
-              })}
+            <div className="v2tax-cell">
+              <div className="k">Techniques</div>
+              <div className="v">{index.techniques.length}</div>
             </div>
-          </section>
-        );
-      })}
+            <div className="v2tax-cell">
+              <div className="k">Roots</div>
+              <div className="v">{index.rootPositions.length}</div>
+            </div>
+          </div>
 
-      {/* Taxonomy Card Modal */}
+          <div className="section-title">Search</div>
+          <div className="v2tax-search">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="kimura, sweep, guard…"
+            />
+          </div>
+          {query.trim().length > 0 && (
+            <div className="v2tax-results">
+              {results.length === 0 ? (
+                <div className="v2tax-muted">No matches.</div>
+              ) : (
+                results.map((technique) => {
+                  const fromPosition = index.positionsById.get(
+                    technique.positionFromId,
+                  );
+                  return (
+                    <div key={technique.id} className="v2tax-result">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openTaxonomyCard("technique", technique.id)
+                        }
+                        className="v2tax-result-name"
+                      >
+                        {technique.name}
+                      </button>
+                      <div className="v2tax-result-sub">
+                        from{" "}
+                        {fromPosition ? (
+                          <ClickableTaxonomy
+                            type="position"
+                            id={fromPosition.id}
+                            name={fromPosition.name}
+                            onClick={openTaxonomyCard}
+                          />
+                        ) : (
+                          "Unknown"
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {PERSPECTIVES.map(({ key, label }) => {
+            const positions = perspectiveGroups[key];
+            if (positions.length === 0) return null;
+            return (
+              <div key={key}>
+                <div className="section-title">{label}</div>
+                <div className="v2tax-list">
+                  {positions.map((position) => {
+                    const children = index.getChildren(position.id);
+                    const techniques = index.getTechniquesByPosition(
+                      position.id,
+                    );
+                    return (
+                      <PositionCard
+                        key={position.id}
+                        position={position}
+                        childPositions={children}
+                        techniques={techniques}
+                        index={index}
+                        onPositionClick={(id) =>
+                          openTaxonomyCard("position", id)
+                        }
+                        onTechniqueClick={(id) =>
+                          openTaxonomyCard("technique", id)
+                        }
+                        depth={0}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <TaxonomyCard
         type={taxonomyCard?.type ?? "position"}
         id={taxonomyCard?.id ?? null}
@@ -333,6 +280,254 @@ export default function TaxonomyPage() {
         index={index}
         onNavigate={(type, id) => setTaxonomyCard({ type, id })}
       />
-    </div>
+    </>
   );
 }
+
+const css = `
+  .v2tax-root {
+    --bg: #f5f2ed;
+    --ink: #1a1815;
+    --accent: oklch(0.45 0.12 25);
+    --cream: #faf7f1;
+    font-family: var(--font-inter), sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    min-height: calc(100vh - 64px);
+    margin-left: -20px;
+    margin-right: -20px;
+    margin-top: -24px;
+    margin-bottom: -48px;
+    padding-bottom: 24px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .v2tax-shell { max-width: 460px; margin: 0 auto; }
+  .v2tax-root .top {
+    padding: 18px 18px 10px;
+  }
+  .v2tax-root .top .d {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  .v2tax-root .top .sub {
+    font-size: 11px;
+    opacity: 0.55;
+    margin-top: 2px;
+  }
+  .v2tax-totals {
+    margin: 0 14px 6px;
+    padding: 12px;
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid rgba(26, 24, 21, 0.06);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .v2tax-cell {
+    background: var(--cream);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .v2tax-cell .k {
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    font-weight: 600;
+  }
+  .v2tax-cell .v {
+    font-size: 22px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .section-title {
+    padding: 14px 18px 8px;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    font-weight: 600;
+  }
+  .v2tax-search {
+    margin: 0 14px 8px;
+  }
+  .v2tax-search input {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--ink);
+    background: #fff;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    color: inherit;
+  }
+  .v2tax-search input::placeholder {
+    color: rgba(26, 24, 21, 0.3);
+  }
+  .v2tax-results {
+    margin: 0 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .v2tax-muted {
+    padding: 14px;
+    background: #fff;
+    border: 1px dashed rgba(26, 24, 21, 0.15);
+    border-radius: 10px;
+    font-size: 12px;
+    color: rgba(26, 24, 21, 0.55);
+    text-align: center;
+  }
+  .v2tax-result {
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid rgba(26, 24, 21, 0.06);
+    border-radius: 10px;
+  }
+  .v2tax-result-name {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .v2tax-result-name:hover { color: var(--accent); }
+  .v2tax-result-sub {
+    font-size: 11px;
+    opacity: 0.55;
+    margin-top: 2px;
+  }
+  .v2tax-list {
+    margin: 0 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pos-card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid rgba(26, 24, 21, 0.06);
+    overflow: hidden;
+  }
+  .pos-card-nested {
+    background: var(--cream);
+    border-color: rgba(26, 24, 21, 0.05);
+  }
+  .pos-card-head {
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pos-pill {
+    font-size: 13px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(26, 24, 21, 0.08);
+    font-weight: 600;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .pos-card-nested .pos-pill {
+    font-size: 12px;
+    background: rgba(26, 24, 21, 0.06);
+  }
+  .tech-count {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--accent);
+    margin-left: auto;
+  }
+  .pos-info {
+    border: 1px solid rgba(26, 24, 21, 0.15);
+    background: transparent;
+    color: rgba(26, 24, 21, 0.55);
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    flex-shrink: 0;
+  }
+  .pos-info:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+    background: var(--cream);
+  }
+  .pos-chevron {
+    border: none;
+    background: transparent;
+    color: rgba(26, 24, 21, 0.45);
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    flex-shrink: 0;
+    transition: transform 0.15s;
+  }
+  .pos-chevron.is-open { transform: rotate(90deg); }
+  .pos-chevron:hover { color: var(--ink); background: rgba(26, 24, 21, 0.05); }
+  .pos-chevron-spacer {
+    display: inline-block;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+  .pos-card-body {
+    padding: 0 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .tech-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .tech-chip {
+    font-family: inherit;
+    font-size: 11.5px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(26, 24, 21, 0.1);
+    background: var(--paper-yellow, #fff9e4);
+    color: #3a2e12;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .tech-chip:hover {
+    background: oklch(0.7 0.12 75);
+    color: var(--bg);
+    border-color: oklch(0.7 0.12 75);
+  }
+  .child-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+`;

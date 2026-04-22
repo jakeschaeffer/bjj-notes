@@ -1640,7 +1640,7 @@ const css = `
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    padding: 8px 12px 10px;
+    padding: 10px 12px;
     border-top: 1px solid rgba(26, 24, 21, 0.08);
     background: var(--cream);
     border-radius: 0 0 12px 12px;
@@ -1650,18 +1650,27 @@ const css = `
     margin: 6px 0 0;
     border: 1px solid rgba(26, 24, 21, 0.1);
     border-radius: 10px;
+    border-top-width: 1px;
   }
-  .v2-root .partner-chip {
+  .v2-root button.partner-chip {
+    width: auto;
+    height: auto;
+    display: inline-flex;
+    align-items: center;
     font-family: inherit;
-    font-size: 11.5px;
-    padding: 5px 10px;
+    font-size: 13px;
+    line-height: 1;
+    padding: 8px 14px;
     border-radius: 999px;
-    border: 1px solid rgba(26, 24, 21, 0.15);
+    border: 1px solid rgba(26, 24, 21, 0.18);
     background: #fff;
     color: var(--ink);
     cursor: pointer;
+    white-space: nowrap;
+    min-height: 32px;
+    box-shadow: 0 1px 2px rgba(26, 24, 21, 0.05);
   }
-  .v2-root .partner-chip:hover {
+  .v2-root button.partner-chip:hover {
     background: var(--ink);
     color: var(--bg);
     border-color: var(--ink);
@@ -1690,16 +1699,25 @@ const css = `
     border-color: var(--ink);
     background: #fff;
   }
-  .v2-root .pcompose button {
-    padding: 0 14px;
+  .v2-root .pcompose > button {
+    padding: 0;
     background: transparent;
     border: 1px dashed rgba(26, 24, 21, 0.3);
     border-radius: 10px;
-    font-size: 18px;
+    font-size: 22px;
     cursor: pointer;
     font-family: inherit;
     color: var(--ink);
     width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .v2-root .pcompose > button:hover {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+    border-style: solid;
   }
   .v2-root .done {
     margin: 0 14px 20px;
