@@ -70,6 +70,23 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to view the app.
 
+### Test user (dev)
+
+Signups require an invite code, so use the admin API to create a
+confirmed user for local development. With `SUPABASE_SECRET_KEY` set in
+`.env.local`:
+
+```bash
+npm run seed:test-user
+```
+
+Defaults: `test@example.com` / `testpassword123`. Override with
+`TEST_USER_EMAIL` / `TEST_USER_PASSWORD` env vars. The script is
+idempotent — re-running resets the password and re-confirms the email.
+
+Log in at [http://localhost:3000/login](http://localhost:3000/login)
+with those credentials.
+
 ## Project Structure
 
 ```
@@ -149,10 +166,11 @@ Voice notes are transcribed and parsed using AI to automatically extract:
 ## Scripts
 
 ```bash
-npm run dev      # Start development server
-npm run build    # Build for production
-npm run start    # Start production server
-npm run lint     # Run ESLint
+npm run dev            # Start development server
+npm run build          # Build for production
+npm run start          # Start production server
+npm run lint           # Run ESLint
+npm run seed:test-user # Create/reset a confirmed test user for local login
 ```
 
 ## License
