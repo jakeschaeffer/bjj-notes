@@ -1,36 +1,41 @@
 import Fuse from "fuse.js";
 
-import { systemIndex } from "@/lib/taxonomy";
+import type { buildTaxonomyIndex } from "@/lib/taxonomy";
 import type { ID, Position, Technique } from "@/lib/types";
 
-const positionFuse = new Fuse(systemIndex.positions, {
-  keys: [
-    { name: "name", weight: 1 },
-    { name: "slug", weight: 0.5 },
-  ],
-  threshold: 0.4,
-  includeScore: true,
-});
+type TaxonomyIndex = ReturnType<typeof buildTaxonomyIndex>;
 
-export function suggestPositions(query: string, limit = 6): Position[] {
+export function suggestPositions(
+  positions: Position[],
+  query: string,
+  limit = 6,
+): Position[] {
   const q = query.trim();
   if (!q) {
-    return systemIndex.positions.slice(0, limit);
+    return positions.slice(0, limit);
   }
-  return positionFuse
+  const fuse = new Fuse(positions, {
+    keys: [
+      { name: "name", weight: 1 },
+      { name: "slug", weight: 0.5 },
+    ],
+    threshold: 0.4,
+  });
+  return fuse
     .search(q)
     .slice(0, limit)
     .map((r) => r.item);
 }
 
 export function suggestTechniques(
-  query: string,
+  index: TaxonomyIndex,
   positionId: ID | null,
+  query: string,
   limit = 6,
 ): Technique[] {
   const base = positionId
-    ? systemIndex.getTechniquesForPositionAndParents(positionId)
-    : systemIndex.techniques;
+    ? index.getTechniquesForPositionAndParents(positionId)
+    : index.techniques;
   const q = query.trim();
   if (!q) {
     return base.slice(0, limit);

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/db/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
-import { systemIndex } from "@/lib/taxonomy";
+import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 import {
   matchExtraction,
   type ExtractionPayload,
@@ -104,8 +104,17 @@ export default function LogPage() {
   const { user } = useAuth();
   const { sessions, getSessionById, addSession, updateSession } =
     useLocalSessions();
+  const {
+    positions: taxPositions,
+    index: taxIndex,
+    partnerSuggestions,
+    addCustomPosition,
+    addCustomTechnique,
+    recordPartnerNames,
+  } = useUserTaxonomy();
 
-  const [date] = useState<string>(todayLocalISO());
+  const [date, setDate] = useState<string>(todayLocalISO());
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [classIdx, setClassIdx] = useState<number>(0);
   const [moves, setMoves] = useState<MoveDraft[]>([emptyMove()]);
   const [rounds, setRounds] = useState<RoundDraft[]>([]);
@@ -114,6 +123,9 @@ export default function LogPage() {
     | { moveKey: string; field: "pos" | "tech" }
     | null
   >(null);
+  const [focusedPartnerKey, setFocusedPartnerKey] = useState<string | null>(
+    null,
+  );
   const [saving, setSaving] = useState<"idle" | "saving" | "error">("idle");
   const [saveError, setSaveError] = useState<string>("");
 
@@ -150,9 +162,9 @@ export default function LogPage() {
     const rebuiltMoves: MoveDraft[] = [];
     for (const t of existing.techniques) {
       const pos = t.positionId
-        ? systemIndex.positionsById.get(t.positionId)
+        ? taxIndex.positionsById.get(t.positionId)
         : null;
-      const tech = systemIndex.techniquesById.get(t.techniqueId);
+      const tech = taxIndex.techniquesById.get(t.techniqueId);
       rebuiltMoves.push({
         key: t.id || createId(),
         posId: t.positionId,
@@ -163,7 +175,7 @@ export default function LogPage() {
       });
     }
     for (const n of existing.positionNotes) {
-      const pos = systemIndex.positionsById.get(n.positionId);
+      const pos = taxIndex.positionsById.get(n.positionId);
       rebuiltMoves.push({
         key: n.id || createId(),
         posId: n.positionId,
@@ -189,7 +201,7 @@ export default function LogPage() {
     setClassIdx(classMatch >= 0 ? classMatch : 0);
     setMoves(rebuiltMoves);
     setRounds(rebuiltRounds);
-  }, [editSessionId, getSessionById]);
+  }, [editSessionId, getSessionById, taxIndex]);
 
   const entryNumber = useMemo(() => {
     if (editSessionId) {
@@ -255,19 +267,93 @@ export default function LogPage() {
     (m) => (m.posId && m.posName) || (m.techId && m.techName),
   ).length;
 
+  const focusedMove = useMemo(
+    () =>
+      focusedCell
+        ? moves.find((m) => m.key === focusedCell.moveKey) ?? null
+        : null,
+    [focusedCell, moves],
+  );
+
   const positionSuggestions = useMemo(() => {
-    if (!focusedCell || focusedCell.field !== "pos") return [];
-    const m = moves.find((x) => x.key === focusedCell.moveKey);
-    if (!m) return [];
-    return suggestPositions(m.posName, 6);
-  }, [focusedCell, moves]);
+    if (!focusedCell || focusedCell.field !== "pos" || !focusedMove) return [];
+    return suggestPositions(taxPositions, focusedMove.posName, 6);
+  }, [focusedCell, focusedMove, taxPositions]);
 
   const techniqueSuggestions = useMemo(() => {
-    if (!focusedCell || focusedCell.field !== "tech") return [];
-    const m = moves.find((x) => x.key === focusedCell.moveKey);
-    if (!m) return [];
-    return suggestTechniques(m.techName, m.posId, 6);
-  }, [focusedCell, moves]);
+    if (!focusedCell || focusedCell.field !== "tech" || !focusedMove) return [];
+    return suggestTechniques(taxIndex, focusedMove.posId, focusedMove.techName, 6);
+  }, [focusedCell, focusedMove, taxIndex]);
+
+  const positionQuery = focusedCell?.field === "pos" ? focusedMove?.posName.trim() ?? "" : "";
+  const techniqueQuery = focusedCell?.field === "tech" ? focusedMove?.techName.trim() ?? "" : "";
+  const positionHasExact = positionSuggestions.some(
+    (p) => p.name.toLowerCase() === positionQuery.toLowerCase(),
+  );
+  const techniqueHasExact = techniqueSuggestions.some(
+    (t) => t.name.toLowerCase() === techniqueQuery.toLowerCase(),
+  );
+  const showAddPosition = positionQuery.length >= 2 && !positionHasExact;
+  const showAddTechnique =
+    techniqueQuery.length >= 2 &&
+    !techniqueHasExact &&
+    Boolean(focusedMove?.posId);
+
+  const filteredPartnerSuggestions = useMemo(() => {
+    if (!focusedPartnerKey) return [];
+    const round = rounds.find((r) => r.key === focusedPartnerKey);
+    if (!round) return [];
+    const q = round.partnerName.trim().toLowerCase();
+    const existingNames = new Set(
+      rounds
+        .filter((r) => r.key !== focusedPartnerKey)
+        .map((r) => r.partnerName.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const candidates = partnerSuggestions.filter(
+      (name) => !existingNames.has(name.toLowerCase()),
+    );
+    if (!q) return candidates.slice(0, 6);
+    return candidates
+      .filter((name) => name.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [focusedPartnerKey, rounds, partnerSuggestions]);
+
+  const handleAddCustomPosition = useCallback(
+    (moveKey: string, name: string) => {
+      const pos = addCustomPosition({ name, parentId: null });
+      if (!pos) return;
+      setMoves((prev) =>
+        prev.map((m) =>
+          m.key === moveKey
+            ? { ...m, posId: pos.id, posName: pos.name }
+            : m,
+        ),
+      );
+      setFocusedCell({ moveKey, field: "tech" });
+    },
+    [addCustomPosition],
+  );
+
+  const handleAddCustomTechnique = useCallback(
+    (moveKey: string, name: string, positionId: string) => {
+      const tech = addCustomTechnique({
+        name,
+        category: "submission",
+        positionFromId: positionId,
+      });
+      if (!tech) return;
+      setMoves((prev) =>
+        prev.map((m) =>
+          m.key === moveKey
+            ? { ...m, techId: tech.id, techName: tech.name }
+            : m,
+        ),
+      );
+      setFocusedCell(null);
+    },
+    [addCustomTechnique],
+  );
 
   async function handleSave() {
     if (!user) {
@@ -349,6 +435,13 @@ export default function LogPage() {
       return;
     }
 
+    const partnerNames = rounds
+      .map((r) => r.partnerName.trim())
+      .filter(Boolean);
+    if (partnerNames.length > 0) {
+      recordPartnerNames(partnerNames, nowIso);
+    }
+
     router.push("/sessions");
   }
 
@@ -402,7 +495,7 @@ export default function LogPage() {
         setVoiceError("Extraction returned no data.");
         return;
       }
-      const matched = matchExtraction(payload.extractedPayload, systemIndex);
+      const matched = matchExtraction(payload.extractedPayload, taxIndex);
       applyExtractionToDrafts(matched);
       setVoiceBusy(false);
       setVoiceOpen(false);
@@ -494,7 +587,32 @@ export default function LogPage() {
                   <path d="M7 12v0.5" />
                 </svg>
               </button>
-              <div className="date mono">{formatHeaderDate(date)}</div>
+              <div className="date mono">
+                <input
+                  ref={dateInputRef}
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="v1-date-hidden"
+                  aria-label="Session date"
+                />
+                <button
+                  type="button"
+                  className="v1-date-btn"
+                  onClick={() => {
+                    const input = dateInputRef.current;
+                    if (!input) return;
+                    if (typeof input.showPicker === "function") {
+                      input.showPicker();
+                    } else {
+                      input.focus();
+                      input.click();
+                    }
+                  }}
+                >
+                  {formatHeaderDate(date)}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -617,28 +735,42 @@ export default function LogPage() {
                         </svg>
                       </button>
                     </div>
-                    {rowFocused === "pos" && positionSuggestions.length > 0 && (
-                      <div className="sugg-row">
-                        {positionSuggestions.map((p) => (
-                          <button
-                            key={p.id}
-                            className="sugg-chip"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() =>
-                              updateMove(m.key, {
-                                posName: p.name,
-                                posId: p.id,
-                              })
-                            }
-                            type="button"
-                          >
-                            {p.name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {rowFocused === "pos" &&
+                      (positionSuggestions.length > 0 || showAddPosition) && (
+                        <div className="sugg-row">
+                          {positionSuggestions.map((p) => (
+                            <button
+                              key={p.id}
+                              className="sugg-chip"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                updateMove(m.key, {
+                                  posName: p.name,
+                                  posId: p.id,
+                                })
+                              }
+                              type="button"
+                            >
+                              {p.name}
+                            </button>
+                          ))}
+                          {showAddPosition && (
+                            <button
+                              className="sugg-chip sugg-add"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                handleAddCustomPosition(m.key, m.posName)
+                              }
+                              type="button"
+                              title="Create a custom position"
+                            >
+                              + Add &ldquo;{m.posName}&rdquo;
+                            </button>
+                          )}
+                        </div>
+                      )}
                     {rowFocused === "tech" &&
-                      techniqueSuggestions.length > 0 && (
+                      (techniqueSuggestions.length > 0 || showAddTechnique) && (
                         <div className="sugg-row">
                           {techniqueSuggestions.map((t) => (
                             <button
@@ -654,7 +786,7 @@ export default function LogPage() {
                                     (t.positionFromId || null),
                                   posName:
                                     m.posName ||
-                                    systemIndex.positionsById.get(
+                                    taxIndex.positionsById.get(
                                       t.positionFromId,
                                     )?.name ||
                                     "",
@@ -665,6 +797,23 @@ export default function LogPage() {
                               {t.name}
                             </button>
                           ))}
+                          {showAddTechnique && m.posId && (
+                            <button
+                              className="sugg-chip sugg-add"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                handleAddCustomTechnique(
+                                  m.key,
+                                  m.techName,
+                                  m.posId!,
+                                )
+                              }
+                              type="button"
+                              title="Create a custom technique (default category: submission)"
+                            >
+                              + Add &ldquo;{m.techName}&rdquo;
+                            </button>
+                          )}
                         </div>
                       )}
                     {isOpen && target && (
@@ -713,36 +862,67 @@ export default function LogPage() {
                 <span>Tapped</span>
               </div>
             )}
-            {rounds.map((r) => (
-              <div className="roll" key={r.key}>
-                <div className="belt-wrap">
-                  <div
-                    className="belt"
-                    style={{ background: BELT_COLORS[r.belt] }}
-                    onClick={() => cycleBelt(r.key)}
-                    title="Tap to cycle belt"
-                  />
+            {rounds.map((r) => {
+              const partnerOpen = focusedPartnerKey === r.key;
+              return (
+                <div key={r.key}>
+                  <div className="roll">
+                    <div className="belt-wrap">
+                      <div
+                        className="belt"
+                        style={{ background: BELT_COLORS[r.belt] }}
+                        onClick={() => cycleBelt(r.key)}
+                        title="Tap to cycle belt"
+                      />
+                    </div>
+                    <input
+                      className="partner mono"
+                      value={r.partnerName}
+                      placeholder="name"
+                      onChange={(e) =>
+                        updateRound(r.key, { partnerName: e.target.value })
+                      }
+                      onFocus={() => setFocusedPartnerKey(r.key)}
+                      onBlur={() =>
+                        setTimeout(() => {
+                          setFocusedPartnerKey((k) =>
+                            k === r.key ? null : k,
+                          );
+                        }, 150)
+                      }
+                    />
+                    <div className="score">
+                      <button onClick={() => bumpRound(r.key, "subsFor", -1)} type="button">−</button>
+                      <div className="v mono">{r.subsFor}</div>
+                      <button onClick={() => bumpRound(r.key, "subsFor", 1)} type="button">+</button>
+                    </div>
+                    <div className="score">
+                      <button onClick={() => bumpRound(r.key, "subsAgainst", -1)} type="button">−</button>
+                      <div className="v mono">{r.subsAgainst}</div>
+                      <button onClick={() => bumpRound(r.key, "subsAgainst", 1)} type="button">+</button>
+                    </div>
+                  </div>
+                  {partnerOpen && filteredPartnerSuggestions.length > 0 && (
+                    <div className="partner-suggest">
+                      {filteredPartnerSuggestions.map((name) => (
+                        <button
+                          key={name}
+                          className="partner-chip"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            updateRound(r.key, { partnerName: name });
+                            setFocusedPartnerKey(null);
+                          }}
+                          type="button"
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <input
-                  className="partner mono"
-                  value={r.partnerName}
-                  placeholder="name"
-                  onChange={(e) =>
-                    updateRound(r.key, { partnerName: e.target.value })
-                  }
-                />
-                <div className="score">
-                  <button onClick={() => bumpRound(r.key, "subsFor", -1)} type="button">−</button>
-                  <div className="v mono">{r.subsFor}</div>
-                  <button onClick={() => bumpRound(r.key, "subsFor", 1)} type="button">+</button>
-                </div>
-                <div className="score">
-                  <button onClick={() => bumpRound(r.key, "subsAgainst", -1)} type="button">−</button>
-                  <div className="v mono">{r.subsAgainst}</div>
-                  <button onClick={() => bumpRound(r.key, "subsAgainst", 1)} type="button">+</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
             <button className="addrow" onClick={addRound} type="button">
               + Add round
             </button>
@@ -859,12 +1039,12 @@ const css = `
     font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--ink);
     background: var(--bg);
-    min-height: 100vh;
-    margin-left: -1.5rem;
-    margin-right: -1.5rem;
-    margin-top: -2.5rem;
-    margin-bottom: -2.5rem;
-    padding-bottom: 2rem;
+    min-height: calc(100vh - 64px);
+    margin-left: -20px;
+    margin-right: -20px;
+    margin-top: -24px;
+    margin-bottom: -48px;
+    padding-bottom: 24px;
     font-size: 13px;
     -webkit-font-smoothing: antialiased;
   }
@@ -893,7 +1073,28 @@ const css = `
     margin-top: 4px;
   }
   .v1-hdr-right { display: flex; align-items: center; gap: 10px; }
-  .v1-hdr .date { font-size: 11px; letter-spacing: 0.05em; opacity: 0.65; }
+  .v1-hdr .date { font-size: 11px; letter-spacing: 0.05em; opacity: 0.65; position: relative; }
+  .v1-date-hidden {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 1px;
+    height: 1px;
+    inset: 0;
+  }
+  .v1-date-btn {
+    font: inherit;
+    font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    background: transparent;
+    border: none;
+    color: inherit;
+    padding: 2px 0;
+    cursor: pointer;
+    border-bottom: 1px dotted rgba(26, 24, 21, 0.3);
+  }
+  .v1-date-btn:hover { color: var(--accent); border-bottom-color: var(--accent); }
   .v1-mic {
     border: 1px solid rgba(26, 24, 21, 0.3);
     background: transparent;
@@ -1020,6 +1221,40 @@ const css = `
     cursor: pointer;
   }
   .v1-root .sugg-chip:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .v1-root .sugg-chip.sugg-add {
+    border-style: dashed;
+    border-color: var(--accent);
+    color: var(--accent);
+    background: transparent;
+  }
+  .v1-root .sugg-chip.sugg-add:hover {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    border-style: solid;
+  }
+  .v1-root .partner-suggest {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 0 8px 24px;
+    border-top: 1px dotted rgba(26, 24, 21, 0.08);
+  }
+  .v1-root .partner-chip {
+    font-family: inherit;
+    font-size: 11.5px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(26, 24, 21, 0.15);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .v1-root .partner-chip:hover {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+  }
   .v1-root .noterow {
     border-top: 1px solid rgba(26, 24, 21, 0.08);
     background: var(--cream);
@@ -1209,15 +1444,21 @@ const css = `
   .v1-modal-scrim {
     position: fixed;
     inset: 0;
-    background: rgba(26, 24, 21, 0.5);
-    z-index: 50;
+    background: rgba(26, 24, 21, 0.55);
+    z-index: 9999;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
     padding: 16px;
+    overscroll-behavior: contain;
+    --bg: #f5f2ed;
+    --ink: #1a1815;
+    --accent: oklch(0.45 0.12 25);
+    --cream: #faf7f1;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
   }
   .v1-modal {
-    background: var(--bg);
+    background: #fff;
     border: 1px solid var(--ink);
     border-radius: 4px;
     width: 100%;
@@ -1227,6 +1468,7 @@ const css = `
     flex-direction: column;
     gap: 10px;
     color: var(--ink);
+    box-shadow: 0 20px 60px rgba(26, 24, 21, 0.35);
   }
   .v1-modal-title {
     font-size: 11px;
