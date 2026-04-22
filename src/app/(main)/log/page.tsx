@@ -358,7 +358,10 @@ export default function LogSessionPage() {
     }
     loadedEditIdRef.current = editSessionId;
     setEditingSessionId(editSessionId);
-    setViewMode("view");
+    // The user clicked "Edit" on the session detail page — drop them
+    // straight into edit mode. Post-save view mode is set separately in
+    // handleSubmit so the saved state is still read-only afterwards.
+    setViewMode("edit");
     setDate(existing.date);
     const matchedType = sessionTypes.find((t) => t === existing.sessionType);
     if (matchedType) setSessionType(matchedType);

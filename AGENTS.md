@@ -156,12 +156,12 @@ The log page is driven by `viewMode: "new" | "view" | "edit"`:
 
 - `new` — default on `/log` with no query. Quick Capture visible, form
   editable, primary button is "Save session".
-- `view` — set when `/log?edit=<id>` resolves, or after a successful save
-  or update. Form body wrapped in `<fieldset disabled={readOnly}>`,
-  Quick Capture hidden, sections force-expanded. Primary button is
-  "Edit session".
-- `edit` — user clicked "Edit session" from view mode. Fields re-enabled,
-  primary button is "Update session".
+- `view` — set after a successful save or update. Form body wrapped in
+  `<fieldset disabled={readOnly}>`, Quick Capture hidden, sections
+  force-expanded. Primary button is "Edit session".
+- `edit` — set when `/log?edit=<id>` resolves (user clicked Edit on the
+  session detail page) **or** when the user clicks "Edit session" from
+  view mode. Fields editable, primary button is "Update session".
 
 When adding new interactive controls to the form, remember that
 `<fieldset disabled>` natively disables child buttons/inputs. For anything
@@ -174,8 +174,10 @@ render it *outside* the fieldset or use `<Link>` / an `<a>` (which
 Session detail page has an **Edit** button linking to `/log?edit=<id>`.
 The log page reads the query param, finds the session in the local
 `sessions` array, and populates the form via an effect gated by
-`loadedEditIdRef` (runs once per `editSessionId`). On update, the form
-stays in `view` mode so the user can see the saved state.
+`loadedEditIdRef` (runs once per `editSessionId`). The form opens
+directly in `edit` mode so the user can start editing immediately.
+On update, the form switches to `view` mode so the user can see the
+saved state read-only.
 
 ### Save result contract
 

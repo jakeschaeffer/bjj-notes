@@ -470,12 +470,13 @@ view. It runs in one of three modes via the `viewMode` state:
 | Mode | When it's entered | What the user sees |
 |------|-------------------|--------------------|
 | `new`  | Fresh `/log` visit with no query param | Full editable form, Quick Capture visible, primary button "Save session" |
-| `view` | `/log?edit=<id>` query param; also after a successful save or update | Fieldset-disabled form (read-only), Quick Capture hidden, sections force-expanded, primary button "Edit session" |
-| `edit` | User clicks "Edit session" from view mode | Form editable again, primary button "Update session" |
+| `edit` | `/log?edit=<id>` query param (user clicked Edit on session detail) **or** user clicks "Edit session" from view mode | Form editable, primary button "Update session" |
+| `view` | After a successful save or update | Fieldset-disabled form (read-only), Quick Capture hidden, sections force-expanded, primary button "Edit session" |
 
 Transitions:
 - `new → view` on successful save (the just-saved session is loaded in
   view mode for immediate inspection).
+- `(any) → edit` on `/log?edit=<id>` load.
 - `view → edit` on "Edit session" click.
 - `edit → view` on successful update.
 - `view|edit → new` on "Start new session" / "Log another" (calls

@@ -126,10 +126,10 @@ The app uses a hierarchical taxonomy for BJJ positions and techniques:
 The log page is a single scrollable form with three operating modes:
 
 1. **New** (`/log`) — fresh session, editable form, "Save session" button.
-2. **View** (`/log?edit=<id>` or immediately after a save) — fields are
-   read-only; Quick Capture hidden; primary button is "Edit session".
-3. **Edit** — user clicked "Edit session" in view mode; form is editable
-   again with "Update session" as the primary button.
+2. **Edit** (`/log?edit=<id>` or after clicking "Edit session" in view
+   mode) — form editable, primary button is "Update session".
+3. **View** (immediately after a save or update) — fields are read-only;
+   Quick Capture hidden; primary button is "Edit session".
 
 A session can combine any of: techniques drilled (with or without a
 position), position-only notes, sparring rounds, and freeform notes.

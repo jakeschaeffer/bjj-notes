@@ -186,8 +186,9 @@ After saving, show a brief summary card:
 
 Extension: the form stays populated after save and enters **view mode**
 (read-only). Primary button becomes "Edit session". Session detail page
-also has an Edit button linking to `/log?edit=<id>` so users can return
-to a saved session and modify it.
+also has an Edit button linking to `/log?edit=<id>`; that path opens the
+log page directly in **edit mode** so the user can start typing
+immediately rather than first acknowledging a read-only view.
 
 #### G. Extraction "Auto-filled · verify" badge ✅ Shipped
 
