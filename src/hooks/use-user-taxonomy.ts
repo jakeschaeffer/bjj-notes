@@ -233,6 +233,10 @@ export function useUserTaxonomy() {
 
     updateState((prev) => {
       const updatedTags: UserTag[] = [...prev.tags];
+      const tagIndex = new Map<string, UserTag>();
+      for (const item of updatedTags) {
+        tagIndex.set(item.tag, item);
+      }
 
       for (const rawTag of tags) {
         const tag = normalizeTag(rawTag);
@@ -240,18 +244,20 @@ export function useUserTaxonomy() {
           continue;
         }
 
-        const existing = updatedTags.find((item) => item.tag === tag);
+        const existing = tagIndex.get(tag);
         if (existing) {
           existing.usageCount += 1;
           existing.lastUsedAt = timestamp;
         } else {
-          updatedTags.push({
+          const newTag: UserTag = {
             id: createId(),
             tag,
             usageCount: 1,
             createdAt: timestamp,
             lastUsedAt: timestamp,
-          });
+          };
+          updatedTags.push(newTag);
+          tagIndex.set(tag, newTag);
         }
       }
 
@@ -270,23 +276,27 @@ export function useUserTaxonomy() {
 
       updateState((prev) => {
         const updatedProgress: TechniqueProgress[] = [...prev.progress];
+        const progressIndex = new Map<string, TechniqueProgress>();
+        for (const item of updatedProgress) {
+          progressIndex.set(item.techniqueId, item);
+        }
 
         for (const techniqueId of techniqueIds) {
-          const existing = updatedProgress.find(
-            (item) => item.techniqueId === techniqueId,
-          );
+          const existing = progressIndex.get(techniqueId);
 
           if (existing) {
             existing.lastDrilledAt = timestamp;
             existing.timesDrilled += 1;
           } else {
-            updatedProgress.push({
+            const newProgress: TechniqueProgress = {
               id: createId(),
               techniqueId,
               firstSeenAt: timestamp,
               lastDrilledAt: timestamp,
               timesDrilled: 1,
-            });
+            };
+            updatedProgress.push(newProgress);
+            progressIndex.set(techniqueId, newProgress);
           }
         }
 
@@ -306,6 +316,10 @@ export function useUserTaxonomy() {
 
     updateState((prev) => {
       const updatedPartners: PartnerName[] = [...prev.partners];
+      const partnerIndex = new Map<string, PartnerName>();
+      for (const item of updatedPartners) {
+        partnerIndex.set(item.name.toLowerCase(), item);
+      }
 
       for (const rawName of names) {
         const name = rawName.trim();
@@ -314,20 +328,20 @@ export function useUserTaxonomy() {
         }
 
         const normalized = name.toLowerCase();
-        const existing = updatedPartners.find(
-          (item) => item.name.toLowerCase() === normalized,
-        );
+        const existing = partnerIndex.get(normalized);
 
         if (existing) {
           existing.roundCount += 1;
           existing.lastUsedAt = timestamp;
         } else {
-          updatedPartners.push({
+          const newPartner: PartnerName = {
             id: createId(),
             name,
             roundCount: 1,
             lastUsedAt: timestamp,
-          });
+          };
+          updatedPartners.push(newPartner);
+          partnerIndex.set(normalized, newPartner);
         }
       }
 
