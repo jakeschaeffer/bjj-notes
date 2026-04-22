@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/db/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocalSessions } from "@/hooks/use-local-sessions";
-import { systemIndex } from "@/lib/taxonomy";
+import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 import {
   matchExtraction,
   type ExtractionPayload,
@@ -92,8 +92,17 @@ export default function LogPage() {
   const { user } = useAuth();
   const { sessions, getSessionById, addSession, updateSession } =
     useLocalSessions();
+  const {
+    positions: taxPositions,
+    index: taxIndex,
+    partnerSuggestions,
+    addCustomPosition,
+    addCustomTechnique,
+    recordPartnerNames,
+  } = useUserTaxonomy();
 
-  const [date] = useState<string>(todayLocalISO());
+  const [date, setDate] = useState<string>(todayLocalISO());
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [classIdx, setClassIdx] = useState<number>(0);
   const [pairs, setPairs] = useState<PairDraft[]>([]);
   const [partners, setPartners] = useState<PartnerDraft[]>([]);
@@ -110,6 +119,10 @@ export default function LogPage() {
   const [cueDraft, setCueDraft] = useState<string>("");
 
   const [partnerDraft, setPartnerDraft] = useState<string>("");
+  const [focusedPartnerKey, setFocusedPartnerKey] = useState<string | null>(
+    null,
+  );
+  const [composerPartnerFocus, setComposerPartnerFocus] = useState(false);
 
   const [saving, setSaving] = useState<"idle" | "saving" | "error">("idle");
   const [saveError, setSaveError] = useState<string>("");
@@ -147,9 +160,9 @@ export default function LogPage() {
     const rebuiltPairs: PairDraft[] = [];
     for (const t of existing.techniques) {
       const pos = t.positionId
-        ? systemIndex.positionsById.get(t.positionId)
+        ? taxIndex.positionsById.get(t.positionId)
         : null;
-      const tech = systemIndex.techniquesById.get(t.techniqueId);
+      const tech = taxIndex.techniquesById.get(t.techniqueId);
       const cues = [...(t.keyDetails ?? [])];
       if (cues.length === 0 && t.notes?.trim()) {
         cues.push(t.notes.trim());
@@ -164,7 +177,7 @@ export default function LogPage() {
       });
     }
     for (const n of existing.positionNotes) {
-      const pos = systemIndex.positionsById.get(n.positionId);
+      const pos = taxIndex.positionsById.get(n.positionId);
       const cues = [...(n.keyDetails ?? [])];
       if (cues.length === 0 && n.notes?.trim()) {
         cues.push(n.notes.trim());
@@ -191,7 +204,7 @@ export default function LogPage() {
     setClassIdx(classMatch >= 0 ? classMatch : 0);
     setPairs(rebuiltPairs);
     setPartners(rebuiltPartners);
-  }, [editSessionId, getSessionById]);
+  }, [editSessionId, getSessionById, taxIndex]);
 
   const streak = useMemo(() => {
     if (sessions.length === 0) return 0;
@@ -292,13 +305,84 @@ export default function LogPage() {
 
   const positionSuggestions = useMemo(() => {
     if (composerFocus !== "pos") return [];
-    return suggestPositions(composerPos, 8);
-  }, [composerFocus, composerPos]);
+    return suggestPositions(taxPositions, composerPos, 8);
+  }, [composerFocus, composerPos, taxPositions]);
 
   const techniqueSuggestions = useMemo(() => {
     if (composerFocus !== "tech") return [];
-    return suggestTechniques(composerTech, composerPosId, 8);
-  }, [composerFocus, composerTech, composerPosId]);
+    return suggestTechniques(taxIndex, composerPosId, composerTech, 8);
+  }, [composerFocus, composerTech, composerPosId, taxIndex]);
+
+  const positionQuery = composerFocus === "pos" ? composerPos.trim() : "";
+  const techniqueQuery = composerFocus === "tech" ? composerTech.trim() : "";
+  const positionHasExact = positionSuggestions.some(
+    (p) => p.name.toLowerCase() === positionQuery.toLowerCase(),
+  );
+  const techniqueHasExact = techniqueSuggestions.some(
+    (t) => t.name.toLowerCase() === techniqueQuery.toLowerCase(),
+  );
+  const showAddPosition = positionQuery.length >= 2 && !positionHasExact;
+  const showAddTechnique =
+    techniqueQuery.length >= 2 &&
+    !techniqueHasExact &&
+    Boolean(composerPosId);
+
+  const activePartnerQuery = focusedPartnerKey
+    ? partners.find((p) => p.key === focusedPartnerKey)?.name.trim() ?? ""
+    : "";
+
+  const filteredPartnerSuggestions = useMemo(() => {
+    if (!focusedPartnerKey && !composerPartnerFocus) return [];
+    const query = composerPartnerFocus
+      ? partnerDraft.trim().toLowerCase()
+      : activePartnerQuery.toLowerCase();
+    const existingNames = new Set(
+      partners
+        .filter((p) => p.key !== focusedPartnerKey)
+        .map((p) => p.name.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const candidates = partnerSuggestions.filter(
+      (name) => !existingNames.has(name.toLowerCase()),
+    );
+    if (!query) return candidates.slice(0, 6);
+    return candidates
+      .filter((name) => name.toLowerCase().includes(query))
+      .slice(0, 6);
+  }, [
+    focusedPartnerKey,
+    composerPartnerFocus,
+    partners,
+    partnerSuggestions,
+    partnerDraft,
+    activePartnerQuery,
+  ]);
+
+  const handleAddCustomPosition = useCallback(
+    (name: string) => {
+      const pos = addCustomPosition({ name, parentId: null });
+      if (!pos) return;
+      setComposerPos(pos.name);
+      setComposerPosId(pos.id);
+      setComposerFocus("tech");
+    },
+    [addCustomPosition],
+  );
+
+  const handleAddCustomTechnique = useCallback(
+    (name: string, positionId: string) => {
+      const tech = addCustomTechnique({
+        name,
+        category: "submission",
+        positionFromId: positionId,
+      });
+      if (!tech) return;
+      setComposerTech(tech.name);
+      setComposerTechId(tech.id);
+      setComposerFocus(null);
+    },
+    [addCustomTechnique],
+  );
 
   const canCommit = Boolean(composerPosId);
   const canSave =
@@ -394,6 +478,13 @@ export default function LogPage() {
       return;
     }
 
+    const partnerNames = partners
+      .map((p) => p.name.trim())
+      .filter(Boolean);
+    if (partnerNames.length > 0) {
+      recordPartnerNames(partnerNames, nowIso);
+    }
+
     router.push("/sessions");
   }
 
@@ -447,7 +538,7 @@ export default function LogPage() {
         setVoiceError("Extraction returned no data.");
         return;
       }
-      const matched = matchExtraction(payload.extractedPayload, systemIndex);
+      const matched = matchExtraction(payload.extractedPayload, taxIndex);
       applyExtractionToDrafts(matched);
       setVoiceBusy(false);
       setVoiceOpen(false);
@@ -521,9 +612,32 @@ export default function LogPage() {
       <div className="v2-root">
         <div className="v2-shell">
           <div className="top">
-            <div>
-              <div className="d">{dayName}.</div>
-              <div className="sub">{subtitle}</div>
+            <div className="top-left">
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="v2-date-hidden"
+                aria-label="Session date"
+              />
+              <button
+                type="button"
+                className="v2-date-btn"
+                onClick={() => {
+                  const input = dateInputRef.current;
+                  if (!input) return;
+                  if (typeof input.showPicker === "function") {
+                    input.showPicker();
+                  } else {
+                    input.focus();
+                    input.click();
+                  }
+                }}
+              >
+                <span className="d">{dayName}.</span>
+                <span className="sub">{subtitle}</span>
+              </button>
             </div>
             <div className="top-right">
               <button
@@ -702,28 +816,40 @@ export default function LogPage() {
                 placeholder="what you apply (optional)…"
               />
             </div>
-            {composerFocus === "pos" && positionSuggestions.length > 0 && (
-              <div className="sugg">
-                {positionSuggestions.map((p) => (
-                  <button
-                    key={p.id}
-                    className="chip"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      setComposerPos(p.name);
-                      setComposerPosId(p.id);
-                      setComposerFocus("tech");
-                    }}
-                    type="button"
-                  >
-                    {p.name}
-                  </button>
-                ))}
-              </div>
-            )}
+            {composerFocus === "pos" &&
+              (positionSuggestions.length > 0 || showAddPosition) && (
+                <div className="sugg">
+                  {positionSuggestions.map((p) => (
+                    <button
+                      key={p.id}
+                      className="chip"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setComposerPos(p.name);
+                        setComposerPosId(p.id);
+                        setComposerFocus("tech");
+                      }}
+                      type="button"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                  {showAddPosition && (
+                    <button
+                      className="chip chip-add"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleAddCustomPosition(composerPos)}
+                      type="button"
+                      title="Create a custom position"
+                    >
+                      + Add &ldquo;{composerPos}&rdquo;
+                    </button>
+                  )}
+                </div>
+              )}
             {composerFocus === "tech" && (
               <div className="sugg">
-                {techniqueSuggestions.length === 0 && (
+                {techniqueSuggestions.length === 0 && !showAddTechnique && (
                   <span className="sugg-hint">
                     Pick a position for suggestions, or leave technique empty.
                   </span>
@@ -737,7 +863,7 @@ export default function LogPage() {
                       setComposerTech(t.name);
                       setComposerTechId(t.id);
                       if (!composerPosId) {
-                        const pos = systemIndex.positionsById.get(
+                        const pos = taxIndex.positionsById.get(
                           t.positionFromId,
                         );
                         if (pos) {
@@ -751,6 +877,19 @@ export default function LogPage() {
                     {t.name}
                   </button>
                 ))}
+                {showAddTechnique && composerPosId && (
+                  <button
+                    className="chip chip-add"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() =>
+                      handleAddCustomTechnique(composerTech, composerPosId)
+                    }
+                    type="button"
+                    title="Create a custom technique (default category: submission)"
+                  >
+                    + Add &ldquo;{composerTech}&rdquo;
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -783,6 +922,12 @@ export default function LogPage() {
                         q.key === p.key ? { ...q, name: e.target.value } : q,
                       ),
                     )
+                  }
+                  onFocus={() => setFocusedPartnerKey(p.key)}
+                  onBlur={() =>
+                    setTimeout(() => {
+                      setFocusedPartnerKey((k) => (k === p.key ? null : k));
+                    }, 150)
                   }
                   placeholder="Partner name"
                 />
@@ -835,20 +980,72 @@ export default function LogPage() {
                   </div>
                 </div>
               </div>
+              {focusedPartnerKey === p.key &&
+                filteredPartnerSuggestions.length > 0 && (
+                  <div className="partner-suggest">
+                    {filteredPartnerSuggestions.map((name) => (
+                      <button
+                        key={name}
+                        className="partner-chip"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setPartners((prev) =>
+                            prev.map((q) =>
+                              q.key === p.key ? { ...q, name } : q,
+                            ),
+                          );
+                          setFocusedPartnerKey(null);
+                        }}
+                        type="button"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                )}
             </div>
           ))}
           <div className="pcompose">
-            <input
-              value={partnerDraft}
-              onChange={(e) => setPartnerDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addPartner();
+            <div className="pcompose-field">
+              <input
+                value={partnerDraft}
+                onChange={(e) => setPartnerDraft(e.target.value)}
+                onFocus={() => setComposerPartnerFocus(true)}
+                onBlur={() =>
+                  setTimeout(() => setComposerPartnerFocus(false), 150)
                 }
-              }}
-              placeholder="Add sparring partner…"
-            />
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addPartner();
+                  }
+                }}
+                placeholder="Add sparring partner…"
+              />
+              {composerPartnerFocus &&
+                filteredPartnerSuggestions.length > 0 && (
+                  <div className="partner-suggest partner-suggest-composer">
+                    {filteredPartnerSuggestions.map((name) => (
+                      <button
+                        key={name}
+                        className="partner-chip"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setPartners((prev) => [
+                            ...prev,
+                            { ...emptyPartner(), name },
+                          ]);
+                          setPartnerDraft("");
+                          setComposerPartnerFocus(false);
+                        }}
+                        type="button"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+            </div>
             <button onClick={addPartner} type="button" aria-label="Add partner">
               +
             </button>
@@ -927,11 +1124,11 @@ const css = `
     font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: var(--ink);
     background: var(--bg);
-    min-height: 100vh;
-    margin-left: -1.5rem;
-    margin-right: -1.5rem;
-    margin-top: -2.5rem;
-    margin-bottom: -2.5rem;
+    min-height: calc(100vh - 64px);
+    margin-left: -20px;
+    margin-right: -20px;
+    margin-top: -24px;
+    margin-bottom: -48px;
     padding-bottom: 24px;
     -webkit-font-smoothing: antialiased;
   }
@@ -947,12 +1144,33 @@ const css = `
     font-size: 22px;
     font-weight: 600;
     letter-spacing: -0.03em;
+    display: block;
   }
   .v2-root .top .sub {
     font-size: 11px;
     opacity: 0.55;
     margin-top: 2px;
+    display: block;
   }
+  .v2-root .top-left { position: relative; }
+  .v2-date-hidden {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 1px;
+    height: 1px;
+    inset: 0;
+  }
+  .v2-root .v2-date-btn {
+    background: transparent;
+    border: none;
+    color: inherit;
+    padding: 0;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+  .v2-root .v2-date-btn:hover .sub { color: var(--accent); opacity: 1; }
   .v2-root .top-right { display: flex; align-items: center; gap: 10px; }
   .v2-mic {
     border: 1px solid rgba(26, 24, 21, 0.2);
@@ -1267,6 +1485,18 @@ const css = `
     color: var(--bg);
     border-color: var(--ink);
   }
+  .v2-root .sugg .chip.chip-add {
+    border-style: dashed;
+    border-color: var(--accent);
+    color: var(--accent);
+    background: transparent;
+  }
+  .v2-root .sugg .chip.chip-add:hover {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    border-style: solid;
+  }
   .v2-root .sugg-hint {
     font-size: 11px;
     opacity: 0.5;
@@ -1406,11 +1636,44 @@ const css = `
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
+  .v2-root .partner-suggest {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px 10px;
+    border-top: 1px solid rgba(26, 24, 21, 0.08);
+    background: var(--cream);
+    border-radius: 0 0 12px 12px;
+    margin: -1px 0 0;
+  }
+  .v2-root .partner-suggest-composer {
+    margin: 6px 0 0;
+    border: 1px solid rgba(26, 24, 21, 0.1);
+    border-radius: 10px;
+  }
+  .v2-root .partner-chip {
+    font-family: inherit;
+    font-size: 11.5px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(26, 24, 21, 0.15);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .v2-root .partner-chip:hover {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+  }
   .v2-root .pcompose {
     margin: 6px 14px 18px;
     display: flex;
     gap: 8px;
+    align-items: flex-start;
   }
+  .v2-root .pcompose-field { flex: 1; position: relative; }
+  .v2-root .pcompose-field input { width: 100%; }
   .v2-root .pcompose input {
     flex: 1;
     padding: 10px 12px;
@@ -1469,15 +1732,21 @@ const css = `
   .v2-modal-scrim {
     position: fixed;
     inset: 0;
-    background: rgba(26, 24, 21, 0.5);
-    z-index: 50;
+    background: rgba(26, 24, 21, 0.55);
+    z-index: 9999;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
     padding: 16px;
+    overscroll-behavior: contain;
+    --bg: #f5f2ed;
+    --ink: #1a1815;
+    --accent: oklch(0.45 0.12 25);
+    --cream: #faf7f1;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
   }
   .v2-modal {
-    background: var(--bg);
+    background: #fff;
     border-radius: 12px;
     width: 100%;
     max-width: 460px;
@@ -1487,6 +1756,7 @@ const css = `
     gap: 10px;
     color: var(--ink);
     border: 1px solid rgba(26, 24, 21, 0.12);
+    box-shadow: 0 20px 60px rgba(26, 24, 21, 0.35);
   }
   .v2-modal-title {
     font-size: 10px;
