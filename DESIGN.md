@@ -14,24 +14,44 @@ document focuses on two core screens that need the most design attention:
 
 ---
 
+## Implementation Status (April 2026)
+
+This doc was originally written as a forward-looking spec. Much of it has since
+shipped. Each proposal below is tagged:
+
+- ✅ **Shipped** — live in `main`.
+- ⚠ **Partial** — shipped but diverges from the spec; noted inline.
+- ❌ **Not shipped** — still a proposal.
+
+See `docs/AUDIT_FINDINGS.md` for known bugs in the shipped surfaces.
+
+---
+
 ## 1. Session Logging Screen (`/log`)
 
-### Current State
+### Original Current State (now superseded)
 
-The current log page is functional but has friction points:
+The original friction points were:
 
-- The "lesson" vs "sparring" tab split forces users to choose a mode before they've
-  started writing. Most sessions include both drilling and rolling.
-- Metadata (date, type, gi/nogi) is collapsed by default — good — but the collapsible
-  chrome adds visual noise.
-- The technique card asks for Position then Technique sequentially, which is fine for
-  structured drilling but awkward when the user just wants to jot "we did armbars."
-- Sparring rounds have good granularity (submissions, dominant/stuck positions) but
-  the round-by-round card pattern gets long quickly for 5-6 round sessions.
+- The "lesson" vs "sparring" tab split forced mode choice. **Fixed** — the
+  tab split was removed; sections now coexist.
+- Metadata collapsible chrome was noisy. **Still collapsible by default.**
+- Technique card asks Position then Technique sequentially. **Still the
+  case — intentionally kept** (see §1B note).
+- Round-by-round card pattern long for 5–6 round sessions. **Fixed** —
+  see §1C compact rounds.
+
+### Current State (April 2026)
+
+The log page is now a three-mode component (`new`, `view`, `edit`) with
+`?edit=<id>` for editing existing sessions. The form body runs inside a
+`<fieldset disabled>` when in `view` mode so saved sessions are inspected
+rather than accidentally edited. See `TECHNICAL_OVERVIEW.md` for the
+state machine.
 
 ### Proposed Design
 
-#### A. Remove the Lesson / Sparring Tab Split
+#### A. Remove the Lesson / Sparring Tab Split ✅ Shipped
 
 Replace the binary mode tabs with a single scrollable form that has two clearly
 delineated sections. Both are always visible, collapsible but open by default:
@@ -69,11 +89,17 @@ a tab choice either means the user logs two separate sessions or skips one half.
 unified form with collapsible sections handles all session types naturally. A
 "drilling-only" session just has zero sparring rounds.
 
-#### B. Compact Technique Entry
+#### B. Compact Technique Entry ❌ Not shipped (deferred)
 
-The current technique card uses a two-column Position / Technique picker layout.
-Simplify the default entry to a single-line autocomplete that searches across both
-techniques and positions simultaneously:
+The current technique card still uses the two-column Position / Technique
+picker. Product decision as of April 2026: **keep the two-column layout**
+so users log Position → Technique in that order (and can record just one
+of the two when that's all they know). Revisit if the vertical space
+becomes a real friction point.
+
+Original proposal, for reference:
+
+
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -90,7 +116,7 @@ expanded detail panel (key details + notes) stays the same — it's well designe
 This reduces the default technique card from ~120px tall to ~48px for a fast entry,
 expandable on tap.
 
-#### C. Compact Sparring Round Summary
+#### C. Compact Sparring Round Summary ✅ Shipped
 
 For the common case of 5-6 rounds with minimal notes, offer a **compact summary
 row** option alongside the detailed card:
@@ -119,7 +145,7 @@ just renders a single row per round with:
 - Comma-joined dominant position labels
 - Tap to expand into the existing card layout
 
-#### D. Quick-Add Patterns
+#### D. Quick-Add Patterns ❌ Not shipped
 
 Add a **"Quick round"** button that pre-fills a round template:
 
@@ -131,7 +157,7 @@ Add a **"Quick round"** button that pre-fills a round template:
 The most common sparring entry is "I rolled with X, nothing notable happened." Make
 that a one-tap operation.
 
-#### E. Session Templates
+#### E. Session Templates ❌ Not shipped
 
 For recurring session types (e.g., "Tuesday gi class" or "Saturday open mat"), allow
 saving the metadata (type, gi/nogi, duration) as a template. On the log screen,
@@ -144,10 +170,9 @@ Recent: [Tue Gi Class] [Sat Open Mat] [+ Custom]
 This auto-fills date (today), session type, gi/nogi, and duration. The user jumps
 straight to technique entry.
 
-#### F. Post-Save Continuation
+#### F. Post-Save Continuation ✅ Shipped (with view-mode extension)
 
-After saving, instead of just a flash "Saved!" message, show a brief summary card
-with a clear next action:
+After saving, show a brief summary card:
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -159,30 +184,48 @@ with a clear next action:
 └──────────────────────────────────────────────┘
 ```
 
+Extension: the form stays populated after save and enters **view mode**
+(read-only). Primary button becomes "Edit session". Session detail page
+also has an Edit button linking to `/log?edit=<id>` so users can return
+to a saved session and modify it.
+
+#### G. Extraction "Auto-filled · verify" badge ✅ Shipped
+
+Drafts created by applying an AI extraction show an amber pill reading
+"Auto-filled · verify" on each technique and round card (and a small
+amber dot on compact round rows). The badge clears the first time the
+user edits the draft, providing a visible cue that unverified AI output
+is still present.
+
 ---
 
 ## 2. Progress / "What I've Learned" Screen (`/progress`)
 
-### Current State
+### Original Current State (now superseded)
 
-The progress page has three stat cards (total sessions, techniques logged, last 30
-days), top-5 lists for positions and techniques, and two searchable "explore" lists
-that open modals with notes and children.
+The progress page had three stat cards, top-5 lists, and two searchable
+"explore" lists. Those gaps (no temporal dimension, flat top-5s,
+disconnected modals, no neglect view) have largely been addressed by the
+components in `src/components/progress/`.
 
-This is a good foundation but has gaps:
+### Current State (April 2026)
 
-- **No temporal dimension.** There's no way to see *when* you trained or how
-  consistent you've been over weeks/months.
-- **Flat top-5 lists** don't show the full distribution. A user with 200 sessions
-  can't see which techniques they've been focusing on recently vs historically.
-- **The position/technique modals** are disconnected from session context. You see
-  notes but can't easily jump to the sessions where those notes came from.
-- **No "what am I neglecting?"** view — which positions/techniques have you not
-  touched in a while?
+The progress page now has `StreakStats`, `TrainingCalendar`,
+`TechniqueRecencyList`, `PositionCoverageChart`, `SparringTimeline`, and
+`KnowledgeCard`. Known divergences from the original spec are called
+out per section below.
 
 ### Proposed Design
 
-#### A. Training Calendar (Hero Component)
+#### A. Training Calendar (Hero Component) ⚠ Partial
+
+Shipped as `src/components/progress/training-calendar.tsx`. Divergences
+from spec:
+- Renders **26 weeks** instead of 52 (~6 months).
+- No responsive mobile compression (spec said 3 months on mobile).
+- Intensity uses `amber-200/400/600` rather than `amber-100/300/500`.
+- Hover tooltip uses the native `title` attribute (no touch feedback on
+  mobile).
 
 The centerpiece of the progress page should be a **GitHub-style contribution
 calendar** adapted for training — a grid of cells, one per day, colored by training
@@ -224,9 +267,15 @@ A visual streak calendar provides immediate motivation ("I've trained 3x/week fo
 - On mobile, show last 3 months instead of full year
 - Each cell: `w-3 h-3 rounded-sm` with amber intensity classes
 
-#### B. Streak & Consistency Stats
+#### B. Streak & Consistency Stats ✅ Shipped
 
-Replace the current three stat cards with a richer stats row:
+Shipped as `src/components/progress/streak-stats.tsx`. Note: "Techniques"
+card currently counts techniques from the last 30 days, not all-time.
+
+⚠ Known bug: `streak-stats.tsx` uses `new Date(s.date)` in two places
+where it should use `parseLocalDate(s.date)` — this causes
+off-by-one-day miscounts in negative-UTC timezones. See
+`docs/AUDIT_FINDINGS.md`.
 
 ```
 ┌─────────┐  ┌──────────┐  ┌──────────┐  ┌───────────┐
@@ -243,9 +292,11 @@ Replace the current three stat cards with a richer stats row:
   than consecutive days, which is unrealistic for most people)
 - **Techniques logged**: existing, but scoped to show "X new this month" as subtitle
 
-#### C. Technique Recency / Neglect Heatmap
+#### C. Technique Recency / Neglect Heatmap ✅ Shipped
 
-A table showing all logged techniques with their recency:
+Shipped as `src/components/progress/technique-recency-list.tsx`. The
+"last 5 sessions" dots collapsed into a single recency colour for the
+whole row (rather than per-dot colors).
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -272,10 +323,9 @@ This directly answers: "What should I ask to drill next class?"
 - Color scale: <7 days = amber-500, <30 = amber-300, <90 = amber-100, 90+ = zinc-200
 - Sort options: by recency (default), by total count, alphabetical
 
-#### D. Position Coverage Map
+#### D. Position Coverage Map ✅ Shipped
 
-A visual representation of the BJJ position hierarchy showing where the user has
-spent time and where gaps exist:
+Shipped as `src/components/progress/position-coverage-chart.tsx`.
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -304,9 +354,10 @@ zinc = stale).
 Clicking a position opens the existing modal with children, notes, and techniques —
 keeping the current progress page modal functionality intact.
 
-#### E. Sparring Performance Timeline
+#### E. Sparring Performance Timeline ✅ Shipped
 
-A simple line/bar chart showing sparring performance over time:
+Shipped as `src/components/progress/sparring-timeline.tsx`. Shows 12
+weeks (spec said ~13).
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -338,10 +389,9 @@ tooltips.
 - Use amber-500 for subs achieved, zinc-300 for subs received
 - Show rolling averages as subtitle text
 
-#### F. "What I Know" Knowledge Cards
+#### F. "What I Know" Knowledge Cards ✅ Shipped
 
-The bottom of the progress page (replacing the current explore lists) should show
-**knowledge cards** — compact summaries of the user's accumulated understanding:
+Shipped as `src/components/progress/knowledge-card.tsx`.
 
 ```
 ┌──────────────────────────────────────────────┐
@@ -376,19 +426,19 @@ shows information density without requiring a modal tap.
 
 ---
 
-## 3. Navigation & Information Architecture
+## 3. Navigation & Information Architecture ❌ Not shipped
 
-### Current Nav
+### Current Nav (as shipped)
 
 ```
 Home | Log | Sessions | Techniques | Progress | Taxonomy
 ```
 
-Six items is on the edge of being too many for mobile. The "Taxonomy" page
-(position/technique browser) overlaps heavily with what "Techniques" and "Progress"
-already show.
+Six items wraps badly on 375px screens (see AUDIT_FINDINGS). The
+Settings page (`/settings`, invite codes + partners) is **not in the
+nav** — users can only reach it by typing the URL.
 
-### Proposed Nav
+### Proposed Nav (still proposed)
 
 ```
 Log | Sessions | Progress | Library
@@ -405,7 +455,7 @@ logo tap (already works this way).
 
 ---
 
-## 4. Component Inventory (New)
+## 4. Component Inventory (All Shipped Unless Noted)
 
 ### `<TrainingCalendar />`
 - Props: `sessions: Session[]`, `year?: number`
@@ -439,10 +489,10 @@ logo tap (already works this way).
 - Renders inline knowledge summary for a position
 - Replaces modal-based explore pattern
 
-### `<CompactRoundRow />`
-- Props: `round: DraftRound`, `index: TaxonomyIndex`, `onExpand: () => void`
-- Renders single-line sparring round summary
-- Tap to expand into full card
+### `<CompactRoundRow />` ⚠ Inlined, not extracted
+- Behavior exists in the log page as inline JSX guarded by
+  `compactRounds` / `expandedRoundIds`. The standalone component was
+  never extracted.
 
 ---
 
@@ -465,20 +515,20 @@ dependency is just `[sessions]`.
 
 ---
 
-## 6. Mobile Considerations
+## 6. Mobile Considerations ⚠ Partial
 
-Grapple Graph will primarily be used on a phone, right after training. Key mobile
-decisions:
+Grapple Graph will primarily be used on a phone, right after training.
+Current state vs. spec:
 
-- **Touch targets**: All tappable elements minimum 44px tall (already enforced by
-  existing Button component)
-- **Training calendar**: Show 13 weeks (3 months) instead of 52 on mobile. Swipeable
-  to see more.
-- **Technique entry**: Full-screen modal picker on mobile (existing TechniquePicker
-  already does this well)
-- **Compact rounds**: Default to compact view on mobile, expanded on desktop
-- **Bottom action bar**: Consider a sticky "Save Session" button at the bottom of
-  the log screen on mobile to avoid scrolling back up after entering 5+ rounds
+- **Touch targets** — ⚠ most controls meet 44px, but the sparring
+  submission +/- buttons are 36×36px (below minimum). Tracked in audit.
+- **Training calendar** — ⚠ always renders 26 weeks, no mobile
+  compression, no swipe.
+- **Technique entry** — ✅ modal pickers work well on mobile.
+- **Compact rounds** — ✅ `compactRounds` defaults to true.
+- **Bottom action bar** — ❌ no sticky save; user must scroll to the
+  bottom of a long form.
+- **Nav** — ⚠ 6-item nav wraps on 375px screens; no mobile drawer.
 
 ---
 

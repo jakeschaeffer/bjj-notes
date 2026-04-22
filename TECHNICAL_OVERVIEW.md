@@ -93,7 +93,8 @@ type SessionType = "regular-class" | "open-mat" | "private" |
 interface Session {
   id: string;
   userId: string;
-  date: string;                         // "YYYY-MM-DD"
+  date: string;                         // "YYYY-MM-DD" — always parse with
+                                        // parseLocalDate() for display
   sessionType: SessionType;
   giOrNogi: "gi" | "nogi" | "both";
   durationMinutes: number | null;
@@ -104,6 +105,12 @@ interface Session {
   notes: string;
   insights: string[];
   goalsForNext: string[];
+  legacySparring?: {                    // Back-compat for pre-rounds data
+    rounds: number;
+    subsAchieved: number;
+    subsReceived: number;
+    notes: string;
+  };
   createdAt: string;                    // ISO 8601
   updatedAt: string;
 }
@@ -116,7 +123,8 @@ Links a session to techniques drilled with notes and key details.
 interface SessionTechnique {
   id: string;
   sessionId: string;
-  positionId: string;
+  positionId: string | null;            // Optional — techniques can be logged
+                                        // without a starting position
   techniqueId: string;
   keyDetails: string[];                 // ["grip on collar", "hip angle"]
   notes: string;
@@ -310,8 +318,8 @@ The extraction system uses Fuse.js fuzzy matching:
 | Hook | Purpose |
 |------|---------|
 | `useAuth()` | Auth state, user object, loading state |
-| `useUserTaxonomy()` | Combined system + user taxonomy, mutations |
-| `useLocalSessions()` | Session CRUD, Supabase sync |
+| `useUserTaxonomy()` | Combined system + user taxonomy, mutations, notes |
+| `useLocalSessions()` | Session CRUD, Supabase sync (hook name is historical — backend is Supabase, not localStorage) |
 
 ### useUserTaxonomy
 
@@ -323,16 +331,42 @@ const {
   techniques,               // System + custom techniques
   index,                    // TaxonomyIndex for lookups
   tags,                     // User tags with usage stats
-  tagSuggestions,           // Sorted by frequency
+  tagSuggestions,           // Tags sorted by frequency
   progress,                 // Technique drill history
   partners,                 // Partner names with round counts
+  partnerSuggestions,       // Partner names sorted by frequency
+  techniqueNotes,           // User notes attached to techniques
+  positionNotes,            // User notes attached to positions
+  techniqueNotesById,       // Map<techniqueId, UserTechniqueNote>
+  positionNotesById,        // Map<positionId, UserPositionNote>
   addCustomPosition,        // Create user position
   addCustomTechnique,       // Create user technique
   recordTagUsage,           // Track tag usage
   recordTechniqueProgress,  // Update drill stats
   recordPartnerNames,       // Track partners
+  updateTechniqueNote,      // Upsert a personal note on a technique
+  updatePositionNote,       // Upsert a personal note on a position
 } = useUserTaxonomy();
 ```
+
+### useLocalSessions
+
+```typescript
+const {
+  sessions,                 // Session[] — loaded from Supabase
+  addSession,               // (session) => Promise<SaveResult>
+  updateSession,            // (session) => Promise<SaveResult>
+  deleteSession,            // (id) => Promise<void>   (see audit: should
+                            //                          return SaveResult)
+  getSessionById,           // (id) => Session | undefined
+} = useLocalSessions();
+
+type SaveResult = { ok: true } | { ok: false; error: string };
+```
+
+**Always check `result.ok`** before showing success feedback or resetting
+the form. Failing to do so reintroduces the "UI claims saved but DB write
+failed" class of bug.
 
 ---
 
@@ -345,37 +379,54 @@ src/
 │   │   ├── login/
 │   │   └── signup/
 │   ├── (main)/                 # Protected app pages
-│   │   ├── log/                # Session logging (core feature)
-│   │   ├── sessions/           # Session history
+│   │   ├── log/                # Session logging + edit (core feature)
+│   │   ├── sessions/           # Session history list
+│   │   │   └── [id]/           # Session detail + delete
 │   │   ├── techniques/         # Technique browser
 │   │   ├── taxonomy/           # Taxonomy reference
+│   │   ├── progress/           # Progress dashboard
+│   │   ├── settings/           # Invite codes, partner list
 │   │   └── layout.tsx
-│   └── api/
-│       ├── auth/signup/
-│       ├── transcripts/
-│       ├── extractions/
-│       └── invite-codes/
+│   ├── api/
+│   │   ├── auth/signup/
+│   │   ├── transcripts/        # Audio upload + text paste
+│   │   │   └── [id]/
+│   │   ├── extractions/
+│   │   │   └── [id]/
+│   │   ├── invite-codes/
+│   │   └── env-check/          # ⚠ Public endpoint — leaks which secrets
+│   │                           #    are set; see audit TODOs.
+│   └── page.tsx                # Landing page
 ├── components/
 │   ├── ui/                     # Button, Card, FormField, Modal, Tag
 │   ├── auth/                   # AuthGuard, AccountActions
 │   ├── extraction/             # ExtractionReviewPanel
 │   ├── positions/              # PositionPicker
-│   └── techniques/             # TechniquePicker, TagPicker
+│   ├── techniques/             # TechniquePicker, TagPicker
+│   ├── sparring/               # SparringRoundSection (⚠ unused — log
+│   │                           #    page implements inline), PartnerPicker
+│   ├── taxonomy/               # TaxonomyCard, ClickableTaxonomy
+│   └── progress/               # TrainingCalendar, StreakStats,
+│                               #    TechniqueRecencyList,
+│                               #    PositionCoverageChart,
+│                               #    SparringTimeline, KnowledgeCard
 ├── db/
-│   └── supabase/               # Admin and client instances
+│   └── supabase/               # Admin and browser clients
 ├── hooks/
 │   ├── use-auth.ts
 │   ├── use-user-taxonomy.ts
-│   └── use-local-sessions.ts
+│   └── use-local-sessions.ts   # Supabase-backed; name is historical
 ├── lib/
 │   ├── types/                  # TypeScript interfaces
 │   ├── taxonomy/               # Index building, matching
 │   ├── extraction/             # OpenAI schemas, matching
-│   ├── sessions/               # Normalization
-│   └── utils/                  # cn, createId, slugify
+│   ├── sessions/               # normalizeSession, sortSessions
+│   │                           #    (rest of local.ts is dead code)
+│   └── utils/                  # cn, createId, slugify,
+│                               #    parseLocalDate, todayLocalISO
 └── data/
-    ├── positions.json          # ~300 positions
-    └── techniques.json         # ~200 techniques
+    ├── positions.json          # 30 positions (system taxonomy)
+    └── techniques.json         # 50 techniques (system taxonomy)
 ```
 
 ---
@@ -384,10 +435,17 @@ src/
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase admin operations |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL (browser client) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key (browser client) |
+| `SUPABASE_URL` | No | Override URL for server routes; falls back to `NEXT_PUBLIC_SUPABASE_URL` |
+| `SUPABASE_SECRET_KEY` | Yes\* | Preferred server-only key for admin operations |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes\* | Legacy fallback for `SUPABASE_SECRET_KEY` |
 | `OPENAI_API_KEY` | Yes | Whisper + GPT-4o-mini |
+| `INVITE_ADMIN_EMAILS` | Yes\*\* | Comma-separated admin email allowlist |
+
+\* At least one of `SUPABASE_SECRET_KEY` or `SUPABASE_SERVICE_ROLE_KEY` must be set, or server routes will throw.
+
+\*\* `INVITE_ADMIN_EMAILS` is technically optional, **but the invite-codes API fails closed** when it is unset — no one will be able to create or manage invite codes. Set this to your admin email(s) during setup.
 
 ---
 
@@ -397,3 +455,82 @@ src/
 - **Invite-only signup**: Requires valid invite code
 - **Auth guards**: Protected routes check session
 - **Service role isolation**: Admin operations use separate client
+- **Admin allowlist fails closed**: `isAdminEmail` returns `false` when
+  `INVITE_ADMIN_EMAILS` is unset (vs. the prior behavior of granting every
+  authenticated user admin rights).
+
+---
+
+## Log Page State Machine
+
+The log page (`src/app/(main)/log/page.tsx`) is the core feature and
+doubles as both the "new session" form and the "edit existing session"
+view. It runs in one of three modes via the `viewMode` state:
+
+| Mode | When it's entered | What the user sees |
+|------|-------------------|--------------------|
+| `new`  | Fresh `/log` visit with no query param | Full editable form, Quick Capture visible, primary button "Save session" |
+| `view` | `/log?edit=<id>` query param; also after a successful save or update | Fieldset-disabled form (read-only), Quick Capture hidden, sections force-expanded, primary button "Edit session" |
+| `edit` | User clicks "Edit session" from view mode | Form editable again, primary button "Update session" |
+
+Transitions:
+- `new → view` on successful save (the just-saved session is loaded in
+  view mode for immediate inspection).
+- `view → edit` on "Edit session" click.
+- `edit → view` on successful update.
+- `view|edit → new` on "Start new session" / "Log another" (calls
+  `resetForm()` and strips `?edit=` from the URL).
+
+The read-only state is enforced by wrapping the form body in
+`<fieldset disabled={readOnly}>`, which natively disables all nested
+inputs, selects, textareas, and buttons. The Save/Edit button row and
+saved-summary banner are rendered outside the fieldset so they stay
+interactive. Add/remove draft buttons are conditionally rendered (not
+just disabled) so they don't appear greyed out.
+
+### Extraction "auto-filled · verify" flag
+
+Drafts created by applying an AI extraction set `fromExtraction: true` on
+`DraftTechnique` and `DraftRound`. The UI renders an amber pill on each
+such draft, signalling "this was auto-filled, please verify before
+saving." The flag is cleared the first time the user edits the draft
+(centralized in `updateTechnique` / `updateRound`).
+
+### Notes accordion
+
+The notes + reflections accordion uses an explicit `notesOpen` boolean
+rather than the prior `notes === " "` sentinel hack. The accordion also
+auto-opens when any note field has content on load, and stays open
+automatically in `view` mode.
+
+---
+
+## Date Handling
+
+Session dates are stored as `"YYYY-MM-DD"` strings. Rendering them with
+`new Date(str)` treats the string as UTC midnight — which is the
+*previous* calendar day for any user west of UTC once formatted in local
+time. This was a shipped bug that caused sessions logged on April 21 to
+display as April 20.
+
+Use **`parseLocalDate(iso)`** from `@/lib/utils` for every display site:
+
+```ts
+import { parseLocalDate } from "@/lib/utils";
+format(parseLocalDate(session.date), "MMM d, yyyy");  // ✅
+format(new Date(session.date), "MMM d, yyyy");        // ❌ UTC off-by-one
+```
+
+`todayLocalISO()` in the same module returns today's date as a local
+"YYYY-MM-DD" — use it anywhere you need a default-to-today value.
+
+See `AUDIT_FINDINGS.md` for the (currently outstanding) sites that still
+use `new Date(...)` on a date string.
+
+---
+
+## Known Issues
+
+Outstanding bugs and design gaps from the April 2026 audit are tracked in
+`docs/AUDIT_FINDINGS.md`. Start there before adding new features — many
+high-severity fixes are small, local changes worth doing first.

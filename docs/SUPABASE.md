@@ -35,13 +35,26 @@ create policy "Users can manage own taxonomy" on user_taxonomy
 
 Set these in `.env.local` (not committed):
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_URL` (optional if you want a non-public URL for server routes)
-- `SUPABASE_SECRET_KEY` (server-only; preferred)
-- `SUPABASE_SERVICE_ROLE_KEY` (server-only; legacy fallback)
-- `OPENAI_API_KEY` (server-only)
-- `INVITE_ADMIN_EMAILS` (server-only; optional comma-separated allowlist)
+- `NEXT_PUBLIC_SUPABASE_URL` — browser client URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — browser client anon key
+- `SUPABASE_URL` — server-side URL; if unset, falls back to
+  `NEXT_PUBLIC_SUPABASE_URL`. At least one of the two must be set.
+- `SUPABASE_SECRET_KEY` — server-only; preferred admin key
+- `SUPABASE_SERVICE_ROLE_KEY` — server-only; legacy fallback for
+  `SUPABASE_SECRET_KEY`. The admin client tries `SECRET_KEY` first.
+- `OPENAI_API_KEY` — server-only; used by the transcription and
+  extraction routes.
+- `INVITE_ADMIN_EMAILS` — server-only comma-separated email allowlist.
+  **Invite codes API fails closed when this is unset** — no
+  authenticated user will be treated as admin, and
+  `/api/invite-codes` returns 403 for every request. Set this to your
+  admin email(s) during initial setup, otherwise you cannot generate
+  invite codes and cannot onboard new users.
+
+> A diagnostic endpoint at `GET /api/env-check` returns booleans
+> indicating which of these are set. It is currently **publicly
+> accessible** and should be auth-gated or removed before production
+> traffic hits it.
 
 ## Voice transcript tables
 

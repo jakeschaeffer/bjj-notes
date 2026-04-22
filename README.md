@@ -16,9 +16,18 @@ A personal training journal for Brazilian Jiu-Jitsu practitioners. Track techniq
 - **Framework**: Next.js 16 with App Router
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS 4
-- **Database**: Supabase (PostgreSQL + Auth)
+- **Database**: Supabase (PostgreSQL + Auth + Storage)
 - **Search**: Fuse.js for fuzzy search
-- **Forms**: React Hook Form + Zod validation
+- **Dates**: `date-fns`; dates stored as `"YYYY-MM-DD"` and parsed via
+  the project's `parseLocalDate` helper (see `src/lib/utils/date.ts`) to
+  avoid UTC off-by-one display bugs.
+- **Voice transcription**: OpenAI Whisper
+- **Extraction**: OpenAI GPT-4o-mini (Responses API, structured outputs)
+
+> `react-hook-form` and `zod` are listed in `package.json` but not
+> currently imported anywhere. Form validation is hand-rolled in the
+> log page. Don't assume either library is in use until an import
+> appears.
 
 ## Getting Started
 
@@ -35,9 +44,19 @@ Create a `.env.local` file with the following variables:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-OPENAI_API_KEY=your_openai_key  # For voice transcription
+
+# One of these must be set (SECRET_KEY preferred, SERVICE_ROLE_KEY is legacy):
+SUPABASE_SECRET_KEY=your_secret_key
+# SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+OPENAI_API_KEY=your_openai_key              # For voice transcription + extraction
+INVITE_ADMIN_EMAILS=you@example.com         # Comma-separated admin allowlist.
+                                            # REQUIRED: the invite-codes API
+                                            # fails closed when this is unset.
 ```
+
+See `docs/SUPABASE.md` for full setup, and `TECHNICAL_OVERVIEW.md` for
+the complete env-var reference.
 
 ### Installation
 
@@ -58,26 +77,39 @@ src/
 ├── app/                    # Next.js App Router pages
 │   ├── (auth)/            # Auth pages (login, signup)
 │   ├── (main)/            # Main app pages
-│   │   ├── log/           # Session logging
-│   │   ├── sessions/      # Session history
+│   │   ├── log/           # Session logging + edit (via ?edit=<id>)
+│   │   ├── sessions/      # Session history list
+│   │   │   └── [id]/      # Session detail + delete
 │   │   ├── taxonomy/      # Position & technique reference
-│   │   ├── progress/      # Progress tracking
+│   │   ├── progress/      # Progress dashboard
 │   │   ├── techniques/    # Technique library
-│   │   └── settings/      # User settings & partners
-│   └── api/               # API routes
+│   │   └── settings/      # Invite codes + partner list
+│   └── api/               # API routes (transcripts, extractions,
+│                          #   invite-codes, auth/signup, env-check)
 ├── components/            # React components
-│   ├── ui/               # Shared UI components
-│   ├── positions/        # Position picker components
-│   ├── techniques/       # Technique picker components
-│   ├── sparring/         # Sparring round components
-│   ├── taxonomy/         # Taxonomy display components
-│   └── extraction/       # Voice extraction review
-├── hooks/                # Custom React hooks
+│   ├── ui/               # Button, Card, FormField, Modal, Tag
+│   ├── auth/             # AuthGuard, AccountActions
+│   ├── positions/        # PositionPicker
+│   ├── techniques/       # TechniquePicker, TagPicker
+│   ├── sparring/         # PartnerPicker (SparringRoundSection is
+│   │                     #   legacy/unused)
+│   ├── taxonomy/         # TaxonomyCard, ClickableTaxonomy
+│   ├── progress/         # TrainingCalendar, StreakStats,
+│   │                     #   TechniqueRecencyList,
+│   │                     #   PositionCoverageChart,
+│   │                     #   SparringTimeline, KnowledgeCard
+│   └── extraction/       # ExtractionReviewPanel
+├── hooks/                # Custom React hooks (auth, sessions, taxonomy)
 ├── lib/                  # Utilities and types
 │   ├── types/           # TypeScript type definitions
-│   ├── taxonomy/        # Taxonomy data and utilities
-│   └── extraction/      # Voice-to-data extraction
-└── db/                   # Database client setup
+│   ├── taxonomy/        # Index building, matching
+│   ├── extraction/      # OpenAI schemas, fuzzy matching
+│   ├── sessions/        # normalizeSession, sortSessions
+│   │                    #   (rest of local.ts is legacy/unused)
+│   └── utils/           # cn, createId, slugify, parseLocalDate,
+│                        #   todayLocalISO
+├── db/                   # Supabase admin + browser clients
+└── data/                 # Static taxonomy (30 positions, 50 techniques)
 ```
 
 ## Key Concepts
@@ -91,10 +123,21 @@ The app uses a hierarchical taxonomy for BJJ positions and techniques:
 
 ### Session Logging
 
-Sessions can be logged in two modes:
+The log page is a single scrollable form with three operating modes:
 
-1. **Lesson Mode** - Log techniques drilled with optional position context, key details, and notes
-2. **Sparring Mode** - Log rounds with partners, submissions, and position tracking
+1. **New** (`/log`) — fresh session, editable form, "Save session" button.
+2. **View** (`/log?edit=<id>` or immediately after a save) — fields are
+   read-only; Quick Capture hidden; primary button is "Edit session".
+3. **Edit** — user clicked "Edit session" in view mode; form is editable
+   again with "Update session" as the primary button.
+
+A session can combine any of: techniques drilled (with or without a
+position), position-only notes, sparring rounds, and freeform notes.
+There is no "lesson vs. sparring" mode choice.
+
+Voice or pasted transcripts can pre-fill the form; drafts that came from
+extraction carry an "Auto-filled · verify" badge that clears the first
+time the user edits the draft.
 
 ### Voice Extraction
 

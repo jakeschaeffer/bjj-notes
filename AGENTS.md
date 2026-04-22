@@ -20,13 +20,20 @@ Grapple Graph is a **Brazilian Jiu-Jitsu training log** with:
 
 | Area | Primary Files |
 |------|---------------|
-| **Session logging** | `src/app/(main)/log/page.tsx` (2400+ lines, core feature) |
+| **Session logging + edit** | `src/app/(main)/log/page.tsx` (~2940 lines, core feature) |
+| **Session detail / delete** | `src/app/(main)/sessions/[id]/page.tsx` |
+| **Settings (invites, partners)** | `src/app/(main)/settings/page.tsx` |
 | **Types** | `src/lib/types/*.ts` (Session, Position, Technique, etc.) |
 | **Taxonomy** | `src/lib/taxonomy/index.ts`, `src/data/*.json` |
-| **Extraction** | `src/lib/extraction/match-taxonomy.ts` |
-| **Hooks** | `src/hooks/use-user-taxonomy.ts`, `use-local-sessions.ts` |
-| **API routes** | `src/app/api/transcripts/route.ts` |
-| **UI components** | `src/components/ui/*.tsx` (Button, Card, FormField, Tag, Modal) |
+| **Extraction** | `src/lib/extraction/match-taxonomy.ts`, `openai.ts` |
+| **Hooks** | `src/hooks/use-auth.ts`, `use-user-taxonomy.ts`, `use-local-sessions.ts` |
+| **Date handling** | `src/lib/utils/date.ts` (`parseLocalDate`, `todayLocalISO`) |
+| **API routes** | `src/app/api/transcripts/{route,[id]/route,text/route}.ts`, `api/extractions/[id]/route.ts`, `api/auth/signup/route.ts`, `api/invite-codes/route.ts` |
+| **UI components** | `src/components/ui/*.tsx` (Button, Card, FormField, Modal, Tag) |
+| **Sparring components** | `src/components/sparring/` (PartnerPicker; SparringRoundSection exists but is unused — log page inlines the UI) |
+| **Progress components** | `src/components/progress/` (TrainingCalendar, StreakStats, TechniqueRecencyList, PositionCoverageChart, SparringTimeline, KnowledgeCard) |
+| **Taxonomy UI** | `src/components/taxonomy/taxonomy-card.tsx` (TaxonomyCard, ClickableTaxonomy) |
+| **Known-issues log** | `docs/AUDIT_FINDINGS.md` — read before touching the log page |
 
 ---
 
@@ -128,11 +135,87 @@ User customizations stored in `user_taxonomy.data` (JSONB):
 3. Export from `src/components/ui/index.ts`
 
 ### Modifying the session form
-The log page (`src/app/(main)/log/page.tsx`) is large. Key sections:
-- Lines 1-50: Imports and types
-- Lines 200-280: State declarations
-- Lines 350-600: Handler functions (with useCallback)
-- Lines 1260+: JSX render
+The log page (`src/app/(main)/log/page.tsx`) is large (~2940 lines as of
+April 2026) and has three modes: `new`, `view`, `edit`. Approximate layout:
+
+- Lines 1–60: Imports
+- Lines 60–205: Module-level types, constants, helpers (`createDraftTechnique`,
+  `createDraftRound`, `beltOptions`, `ambiguousSubmissions` map, etc.)
+- Lines 206–425: State declarations (~49 useStates), refs, `?edit=<id>`
+  load effect
+- Lines 425–1320: Computed values, memos, handlers (`updateTechnique`,
+  `updateRound`, submission flow, recording flow, extraction, edit-session
+  load, `resetForm`, async `handleSubmit`)
+- Lines 1320+: JSX render — header, form (with `<fieldset disabled>` for
+  view mode), modals (one unified submission picker with sub-steps; belt,
+  position, taxonomy, unmatched, paste-transcript)
+
+### View / edit / new mode
+
+The log page is driven by `viewMode: "new" | "view" | "edit"`:
+
+- `new` — default on `/log` with no query. Quick Capture visible, form
+  editable, primary button is "Save session".
+- `view` — set when `/log?edit=<id>` resolves, or after a successful save
+  or update. Form body wrapped in `<fieldset disabled={readOnly}>`,
+  Quick Capture hidden, sections force-expanded. Primary button is
+  "Edit session".
+- `edit` — user clicked "Edit session" from view mode. Fields re-enabled,
+  primary button is "Update session".
+
+When adding new interactive controls to the form, remember that
+`<fieldset disabled>` natively disables child buttons/inputs. For anything
+that should stay clickable in view mode (navigation links, confirmations),
+render it *outside* the fieldset or use `<Link>` / an `<a>` (which
+`<fieldset disabled>` doesn't affect).
+
+### Editing an existing session
+
+Session detail page has an **Edit** button linking to `/log?edit=<id>`.
+The log page reads the query param, finds the session in the local
+`sessions` array, and populates the form via an effect gated by
+`loadedEditIdRef` (runs once per `editSessionId`). On update, the form
+stays in `view` mode so the user can see the saved state.
+
+### Save result contract
+
+`addSession` and `updateSession` on `useLocalSessions` return
+`Promise<{ ok: true } | { ok: false; error: string }>`. Always await the
+result and branch on `result.ok`. Failing to do so reintroduces the "UI
+says saved but DB write failed" bug class.
+
+```ts
+const result = editingSessionId
+  ? await updateSession(session)
+  : await addSession(session);
+if (!result.ok) {
+  setFormError(result.error || "Could not save. Please try again.");
+  return;
+}
+// ...success path: side-effects, summary, viewMode="view"
+```
+
+### Dates
+
+Never `new Date(sessionDate)` for display — the string is UTC-parsed and
+then formatted in local time, which is off by one day for users west of
+UTC. Use `parseLocalDate()` from `@/lib/utils`:
+
+```ts
+import { parseLocalDate } from "@/lib/utils";
+format(parseLocalDate(session.date), "MMM d, yyyy");  // ✅
+```
+
+Default-to-today values come from `todayLocalISO()` in the same module.
+
+### Extraction "auto-filled" flag
+
+`DraftTechnique` and `DraftRound` carry an optional `fromExtraction` flag.
+`applyExtractionData` sets it to `true` on every draft it produces.
+`updateTechnique` / `updateRound` (the centralized draft updaters) clear
+the flag on any user edit. The badge is rendered in each draft card.
+When extending the draft update flow, route mutations through the
+existing updaters so the flag clears correctly.
 
 ### Adding a new API route
 ```typescript
@@ -173,7 +256,21 @@ export async function GET(request: Request) {
 ```typescript
 import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 
-const { positions, techniques, index } = useUserTaxonomy();
+const {
+  positions,
+  techniques,
+  index,
+  partnerSuggestions,
+  techniqueNotesById,
+  positionNotesById,
+  updateTechniqueNote,
+  updatePositionNote,
+  addCustomPosition,
+  addCustomTechnique,
+  recordTagUsage,
+  recordTechniqueProgress,
+  recordPartnerNames,
+} = useUserTaxonomy();
 
 // Get children of a position
 const children = index.positionsByParent.get(parentId) ?? [];
@@ -183,7 +280,17 @@ const techs = index.techniquesByPosition.get(positionId) ?? [];
 
 // Fuzzy search techniques
 const results = index.techniqueSearch.search(query);
+
+// Look up a user's personal note on a technique
+const myNote = techniqueNotesById.get(techniqueId)?.notes;
 ```
+
+**Warning**: `updateState` inside `useUserTaxonomy` calls `persistState`
+asynchronously. Calling multiple mutators back-to-back fires multiple
+upserts against the same `user_taxonomy` row and can produce a
+last-write-wins race. If you need to record tag usage, technique
+progress, and partner names together (as `handleSubmit` does), this is
+currently a known issue — see the audit.
 
 ---
 
@@ -198,10 +305,27 @@ const results = index.techniqueSearch.search(query);
 
 ## Known Technical Debt
 
-1. **Log page size**: 2400+ lines, could be split into sub-components
-2. **State sprawl**: 28 useState calls could be consolidated into objects
-3. **No automated tests**: Manual testing only
-4. **Accessibility gaps**: Limited ARIA labels and focus states (partially addressed in UI components)
+See `docs/AUDIT_FINDINGS.md` for the full, severity-ranked list. Highlights:
+
+1. **Log page size**: ~2940 lines, 49 useStates. Could be split into
+   sub-components (metadata, techniques, sparring rounds, extraction
+   review) but has resisted extraction because so much state is shared.
+2. **Extraction double-apply** (critical): the extraction auto-populates
+   the form *and* shows the "Apply" button, which re-applies on click.
+3. **`deleteSession` fire-and-forget**: navigates before the async
+   resolves, swallows errors.
+4. **User-taxonomy persist race**: three sequential `updateState` calls
+   after save can clobber each other (last-write-wins).
+5. **Dead code files**: most of `src/lib/sessions/local.ts`, all of
+   `src/lib/taxonomy/user-store.ts`, and
+   `src/components/sparring/sparring-round-section.tsx` are unused —
+   legacy from an earlier localStorage-based architecture.
+6. **Modal accessibility**: no `role="dialog"`, no `aria-modal`, no focus
+   trap, Escape doesn't close.
+7. **No automated tests**: manual testing only.
+8. **Insights / goals comma-serialization** loses commas inside items
+   across edit round-trips.
+9. **`/api/env-check` is public** — information disclosure.
 
 ---
 
