@@ -980,7 +980,7 @@ export default function LogPage() {
                 ? "Saving…"
                 : editSessionId
                   ? "Update Entry"
-                  : "Close Entry"}
+                  : "Save"}
             </button>
           </div>
         </div>
