@@ -40,6 +40,9 @@ type RoundDraft = {
   belt: BeltLevel;
   subsFor: number;
   subsAgainst: number;
+  notes: string;
+  techIds: string[];
+  posIds: string[];
 };
 
 type ClassTypeOption = {
@@ -83,6 +86,9 @@ function emptyRound(): RoundDraft {
     belt: "white",
     subsFor: 0,
     subsAgainst: 0,
+    notes: "",
+    techIds: [],
+    posIds: [],
   };
 }
 
@@ -126,6 +132,8 @@ export default function LogPage() {
   const [focusedPartnerKey, setFocusedPartnerKey] = useState<string | null>(
     null,
   );
+  const [openRoundKey, setOpenRoundKey] = useState<string | null>(null);
+  const [roundTagQuery, setRoundTagQuery] = useState<string>("");
   const [saving, setSaving] = useState<"idle" | "saving" | "error">("idle");
   const [saveError, setSaveError] = useState<string>("");
 
@@ -195,6 +203,9 @@ export default function LogPage() {
       belt: (r.partnerBelt ?? "white") as BeltLevel,
       subsFor: r.submissionsForCount,
       subsAgainst: r.submissionsAgainstCount,
+      notes: r.notes ?? "",
+      techIds: (r.submissionsFor ?? []).map((s) => s.techniqueId).filter(Boolean),
+      posIds: (r.dominantPositions ?? []).filter(Boolean),
     }));
 
     // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating drafts from async-loaded session data; the session arrives after mount via Supabase.
@@ -252,6 +263,48 @@ export default function LogPage() {
   };
 
   const addRound = () => setRounds((prev) => [...prev, emptyRound()]);
+
+  const addRoundTech = (key: string, techniqueId: string) => {
+    setRounds((prev) =>
+      prev.map((r) =>
+        r.key === key && !r.techIds.includes(techniqueId)
+          ? { ...r, techIds: [...r.techIds, techniqueId] }
+          : r,
+      ),
+    );
+    setRoundTagQuery("");
+  };
+
+  const addRoundPos = (key: string, positionId: string) => {
+    setRounds((prev) =>
+      prev.map((r) =>
+        r.key === key && !r.posIds.includes(positionId)
+          ? { ...r, posIds: [...r.posIds, positionId] }
+          : r,
+      ),
+    );
+    setRoundTagQuery("");
+  };
+
+  const removeRoundTech = (key: string, techniqueId: string) => {
+    setRounds((prev) =>
+      prev.map((r) =>
+        r.key === key
+          ? { ...r, techIds: r.techIds.filter((id) => id !== techniqueId) }
+          : r,
+      ),
+    );
+  };
+
+  const removeRoundPos = (key: string, positionId: string) => {
+    setRounds((prev) =>
+      prev.map((r) =>
+        r.key === key
+          ? { ...r, posIds: r.posIds.filter((id) => id !== positionId) }
+          : r,
+      ),
+    );
+  };
 
   const targetForMove = (m: MoveDraft): "tech" | "pos" | null => {
     if (m.techId && m.techName) return "tech";
@@ -318,6 +371,21 @@ export default function LogPage() {
       .filter((name) => name.toLowerCase().includes(q))
       .slice(0, 6);
   }, [focusedPartnerKey, rounds, partnerSuggestions]);
+
+  const roundTagSuggestions = useMemo(() => {
+    if (!openRoundKey) return { techniques: [], positions: [] };
+    const round = rounds.find((r) => r.key === openRoundKey);
+    if (!round) return { techniques: [], positions: [] };
+    const q = roundTagQuery.trim();
+    if (!q) return { techniques: [], positions: [] };
+    const techs = suggestTechniques(taxIndex, null, q, 4).filter(
+      (t) => !round.techIds.includes(t.id),
+    );
+    const poses = suggestPositions(taxPositions, q, 4).filter(
+      (p) => !round.posIds.includes(p.id),
+    );
+    return { techniques: techs, positions: poses };
+  }, [openRoundKey, rounds, roundTagQuery, taxIndex, taxPositions]);
 
   const handleAddCustomPosition = useCallback(
     (moveKey: string, name: string) => {
@@ -398,13 +466,17 @@ export default function LogPage() {
       id: r.key,
       partnerName: r.partnerName.trim() || null,
       partnerBelt: r.belt,
-      submissionsFor: [],
+      submissionsFor: r.techIds.map((techniqueId) => ({
+        id: createId(),
+        techniqueId,
+        positionId: null,
+      })),
       submissionsAgainst: [],
       submissionsForCount: r.subsFor,
       submissionsAgainstCount: r.subsAgainst,
-      dominantPositions: [],
+      dominantPositions: r.posIds,
       stuckPositions: [],
-      notes: "",
+      notes: r.notes.trim(),
     }));
 
     const session: Session = {
@@ -555,6 +627,17 @@ export default function LogPage() {
         belt,
         subsFor: r.submissionsFor.length,
         subsAgainst: r.submissionsAgainst.length,
+        notes: r.notes ?? "",
+        techIds: r.submissionsFor
+          .map((s) => s.techniqueMatch?.item.id ?? "")
+          .filter(Boolean),
+        posIds: (r.dominantPositions ?? [])
+          .map((name) =>
+            Array.from(taxIndex.positionsById.values()).find(
+              (p) => p.name.toLowerCase() === name.toLowerCase(),
+            )?.id ?? "",
+          )
+          .filter(Boolean),
       });
     }
     if (newRounds.length > 0) {
@@ -860,10 +943,16 @@ export default function LogPage() {
                 <span>Partner</span>
                 <span>Subs</span>
                 <span>Tapped</span>
+                <span />
               </div>
             )}
             {rounds.map((r) => {
               const partnerOpen = focusedPartnerKey === r.key;
+              const roundOpen = openRoundKey === r.key;
+              const hasDetail =
+                r.notes.trim() ||
+                r.techIds.length > 0 ||
+                r.posIds.length > 0;
               return (
                 <div key={r.key}>
                   <div className="roll">
@@ -901,6 +990,18 @@ export default function LogPage() {
                       <div className="v mono">{r.subsAgainst}</div>
                       <button onClick={() => bumpRound(r.key, "subsAgainst", 1)} type="button">+</button>
                     </div>
+                    <button
+                      className={`round-detail-btn ${hasDetail ? "has" : ""} ${roundOpen ? "is-open" : ""}`}
+                      onClick={() => {
+                        setOpenRoundKey(roundOpen ? null : r.key);
+                        setRoundTagQuery("");
+                      }}
+                      type="button"
+                      aria-label="Round details"
+                      title={hasDetail ? "Edit round notes + tags" : "Add round notes + tags"}
+                    >
+                      ▸
+                    </button>
                   </div>
                   {partnerOpen && filteredPartnerSuggestions.length > 0 && (
                     <div className="partner-suggest">
@@ -918,6 +1019,91 @@ export default function LogPage() {
                           {name}
                         </button>
                       ))}
+                    </div>
+                  )}
+                  {roundOpen && (
+                    <div className="round-detail">
+                      <div className="round-detail-label">Round notes</div>
+                      <textarea
+                        className="round-notes mono"
+                        value={r.notes}
+                        placeholder="pressure felt great · got swept off my bottom half-guard…"
+                        onChange={(e) =>
+                          updateRound(r.key, { notes: e.target.value })
+                        }
+                        rows={2}
+                      />
+                      {(r.techIds.length > 0 || r.posIds.length > 0) && (
+                        <div className="round-tags">
+                          {r.posIds.map((id) => {
+                            const p = taxIndex.positionsById.get(id);
+                            if (!p) return null;
+                            return (
+                              <span key={id} className="round-tag round-tag-pos">
+                                {p.name}
+                                <button
+                                  type="button"
+                                  className="round-tag-x"
+                                  onClick={() => removeRoundPos(r.key, id)}
+                                  aria-label="Remove"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            );
+                          })}
+                          {r.techIds.map((id) => {
+                            const t = taxIndex.techniquesById.get(id);
+                            if (!t) return null;
+                            return (
+                              <span key={id} className="round-tag round-tag-tech">
+                                {t.name}
+                                <button
+                                  type="button"
+                                  className="round-tag-x"
+                                  onClick={() => removeRoundTech(r.key, id)}
+                                  aria-label="Remove"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="round-tag-add">
+                        <input
+                          className="mono"
+                          value={roundTagQuery}
+                          onChange={(e) => setRoundTagQuery(e.target.value)}
+                          placeholder="tag a position or technique…"
+                        />
+                        {(roundTagSuggestions.positions.length > 0 ||
+                          roundTagSuggestions.techniques.length > 0) && (
+                          <div className="round-tag-suggest">
+                            {roundTagSuggestions.positions.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                className="round-tag-chip round-tag-pos"
+                                onClick={() => addRoundPos(r.key, p.id)}
+                              >
+                                + {p.name}
+                              </button>
+                            ))}
+                            {roundTagSuggestions.techniques.map((t) => (
+                              <button
+                                key={t.id}
+                                type="button"
+                                className="round-tag-chip round-tag-tech"
+                                onClick={() => addRoundTech(r.key, t.id)}
+                              >
+                                + {t.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1315,7 +1501,7 @@ const css = `
   .v1-root .addrow:hover { opacity: 1; }
   .v1-root .roll {
     display: grid;
-    grid-template-columns: 18px 1fr auto auto;
+    grid-template-columns: 18px 1fr auto auto 24px;
     gap: 10px;
     align-items: center;
     padding: 10px 0;
@@ -1332,6 +1518,116 @@ const css = `
     text-transform: uppercase;
     opacity: 0.55;
   }
+  .v1-root .round-detail-btn {
+    border: 1px solid rgba(26, 24, 21, 0.2);
+    background: transparent;
+    color: rgba(26, 24, 21, 0.5);
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    transition: transform 0.15s;
+    border-radius: 0;
+  }
+  .v1-root .round-detail-btn.is-open { transform: rotate(90deg); color: var(--ink); border-color: var(--ink); }
+  .v1-root .round-detail-btn.has { color: var(--accent); border-color: var(--accent); }
+  .v1-root .round-detail-btn:hover { color: var(--ink); border-color: var(--ink); }
+  .v1-root .round-detail {
+    border-top: 1px dotted rgba(26, 24, 21, 0.15);
+    padding: 8px 0 10px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--cream);
+  }
+  .v1-root .round-detail-label {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    font-weight: 600;
+  }
+  .v1-root .round-notes {
+    border: 1px solid rgba(26, 24, 21, 0.2);
+    background: #fff;
+    padding: 8px 10px;
+    font-family: var(--font-ibm-plex-mono), monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    color: inherit;
+    outline: none;
+    resize: vertical;
+    margin-right: 12px;
+  }
+  .v1-root .round-notes:focus { border-color: var(--ink); }
+  .v1-root .round-notes::placeholder { color: rgba(26, 24, 21, 0.35); font-style: italic; }
+  .v1-root .round-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-right: 12px;
+  }
+  .v1-root .round-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 3px 4px 3px 8px;
+    border: 1px solid rgba(26, 24, 21, 0.2);
+    background: #fff;
+  }
+  .v1-root .round-tag-tech { background: var(--paper-yellow, #fff9e4); color: #3a2e12; border-color: rgba(58, 46, 18, 0.2); }
+  .v1-root .round-tag-x {
+    border: none;
+    background: transparent;
+    color: inherit;
+    opacity: 0.5;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 4px;
+    font-family: inherit;
+  }
+  .v1-root .round-tag-x:hover { opacity: 1; }
+  .v1-root .round-tag-add {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-right: 12px;
+  }
+  .v1-root .round-tag-add input {
+    border: 1px dashed rgba(26, 24, 21, 0.3);
+    background: transparent;
+    padding: 6px 10px;
+    font-family: var(--font-ibm-plex-mono), monospace;
+    font-size: 12px;
+    color: inherit;
+    outline: none;
+  }
+  .v1-root .round-tag-add input:focus {
+    border-style: solid;
+    border-color: var(--ink);
+    background: #fff;
+  }
+  .v1-root .round-tag-add input::placeholder { color: rgba(26, 24, 21, 0.35); font-style: italic; }
+  .v1-root .round-tag-suggest {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .v1-root .round-tag-chip {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 4px 8px;
+    border: 1px solid rgba(26, 24, 21, 0.2);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .v1-root .round-tag-chip.round-tag-tech { background: var(--paper-yellow, #fff9e4); color: #3a2e12; border-color: rgba(58, 46, 18, 0.2); }
+  .v1-root .round-tag-chip:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
   .v1-root .roll .belt-wrap {
     position: relative;
     width: 18px;

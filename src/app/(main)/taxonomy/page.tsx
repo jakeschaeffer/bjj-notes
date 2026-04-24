@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
 import {
@@ -121,6 +122,7 @@ function PositionRow({
 }
 
 export default function TaxonomyPage() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const { index } = useUserTaxonomy();
 
@@ -210,7 +212,7 @@ export default function TaxonomyPage() {
                           type="button"
                           className="tax-result-name"
                           onClick={() =>
-                            openTaxonomyCard("technique", technique.id)
+                            router.push(`/techniques?focus=${technique.id}`)
                           }
                         >
                           {technique.name}
@@ -265,7 +267,7 @@ export default function TaxonomyPage() {
                           openTaxonomyCard("position", id)
                         }
                         onTechniqueClick={(id) =>
-                          openTaxonomyCard("technique", id)
+                          router.push(`/techniques?focus=${id}`)
                         }
                         depth={0}
                       />

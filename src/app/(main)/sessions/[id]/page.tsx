@@ -222,27 +222,66 @@ export default function SessionDetailPage() {
                   const tapped =
                     round.submissionsAgainstCount ??
                     round.submissionsAgainst.length;
+                  const techTags = (round.submissionsFor ?? [])
+                    .map((s) => index.techniquesById.get(s.techniqueId))
+                    .filter((t): t is NonNullable<typeof t> => Boolean(t));
+                  const posTags = (round.dominantPositions ?? [])
+                    .map((id) => index.positionsById.get(id))
+                    .filter((p): p is NonNullable<typeof p> => Boolean(p));
+                  const hasDetails =
+                    (round.notes && round.notes.trim()) ||
+                    techTags.length > 0 ||
+                    posTags.length > 0;
                   return (
-                    <div key={round.id} className="sd-roll">
-                      <div className="belt-wrap">
-                        <div
-                          className="belt"
-                          style={{
-                            background:
-                              BELT_COLORS[round.partnerBelt ?? "unknown"],
-                          }}
-                        />
+                    <div key={round.id}>
+                      <div className="sd-roll">
+                        <div className="belt-wrap">
+                          <div
+                            className="belt"
+                            style={{
+                              background:
+                                BELT_COLORS[round.partnerBelt ?? "unknown"],
+                            }}
+                          />
+                        </div>
+                        <div className="sd-roll-name">
+                          <span className="sd-roll-partner mono">
+                            {round.partnerName || "Partner unknown"}
+                          </span>
+                          <span className="sd-roll-num mono">
+                            R{rIdx + 1}
+                          </span>
+                        </div>
+                        <div className="sd-roll-score mono">{subs}</div>
+                        <div className="sd-roll-score mono">{tapped}</div>
                       </div>
-                      <div className="sd-roll-name">
-                        <span className="sd-roll-partner mono">
-                          {round.partnerName || "Partner unknown"}
-                        </span>
-                        <span className="sd-roll-num mono">
-                          R{rIdx + 1}
-                        </span>
-                      </div>
-                      <div className="sd-roll-score mono">{subs}</div>
-                      <div className="sd-roll-score mono">{tapped}</div>
+                      {hasDetails && (
+                        <div className="sd-roll-detail">
+                          {(posTags.length > 0 || techTags.length > 0) && (
+                            <div className="sd-roll-tags">
+                              {posTags.map((p) => (
+                                <span
+                                  key={p.id}
+                                  className="sd-roll-tag sd-roll-tag-pos"
+                                >
+                                  {p.name}
+                                </span>
+                              ))}
+                              {techTags.map((t) => (
+                                <span
+                                  key={t.id}
+                                  className="sd-roll-tag sd-roll-tag-tech"
+                                >
+                                  {t.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {round.notes && round.notes.trim() && (
+                            <div className="sd-roll-notes">{round.notes}</div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -514,6 +553,38 @@ const css = `
     text-align: right;
     font-size: 13px;
     font-variant-numeric: tabular-nums;
+  }
+  .sd-roll-detail {
+    padding: 6px 0 10px 28px;
+    border-top: 1px dotted rgba(26, 24, 21, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--cream);
+  }
+  .sd-roll-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .sd-roll-tag {
+    display: inline-flex;
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid rgba(26, 24, 21, 0.2);
+    background: #fff;
+  }
+  .sd-roll-tag-tech {
+    background: var(--paper-yellow);
+    color: #3a2e12;
+    border-color: rgba(58, 46, 18, 0.2);
+  }
+  .sd-roll-notes {
+    font-family: var(--font-ibm-plex-mono), monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(26, 24, 21, 0.85);
+    padding: 4px 12px 0 0;
   }
   .sd-totals {
     display: flex;
