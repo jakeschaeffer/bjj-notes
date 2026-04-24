@@ -39,9 +39,16 @@ const BELT_COLORS: Record<string, string> = {
 export default function TechniqueProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const id = params?.id ?? "";
+  // Dynamic segment values can arrive URL-encoded (e.g. `custom%3Afoo`
+  // for an id with a colon). Decode so the Map.get() lookup matches.
+  const id = params?.id ? decodeURIComponent(params.id) : "";
   const { sessions } = useLocalSessions();
-  const { index, techniqueNotesById, updateTechniqueNote } = useUserTaxonomy();
+  const {
+    index,
+    techniqueNotesById,
+    updateTechniqueNote,
+    loading: taxLoading,
+  } = useUserTaxonomy();
 
   const technique = id ? index.techniquesById.get(id) ?? null : null;
   const position = technique
@@ -116,6 +123,24 @@ export default function TechniqueProfilePage() {
             : 0),
       0,
     ) + (personalNote ? 1 : 0);
+
+  if (taxLoading) {
+    return (
+      <>
+        <style>{css}</style>
+        <div className="tp-root">
+          <div className="tp-shell">
+            <div className="tp-hdr">
+              <div>
+                <h1>Technique</h1>
+                <div className="no mono">Loading…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   if (!technique) {
     return (

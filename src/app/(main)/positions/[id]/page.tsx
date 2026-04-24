@@ -46,9 +46,16 @@ const BELT_COLORS: Record<string, string> = {
 export default function PositionProfilePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const id = params?.id ?? "";
+  // Dynamic segment values can arrive URL-encoded (e.g. `custom%3Afoo`
+  // for an id with a colon). Decode so the Map.get() lookup matches.
+  const id = params?.id ? decodeURIComponent(params.id) : "";
   const { sessions } = useLocalSessions();
-  const { index, positionNotesById, updatePositionNote } = useUserTaxonomy();
+  const {
+    index,
+    positionNotesById,
+    updatePositionNote,
+    loading: taxLoading,
+  } = useUserTaxonomy();
 
   const position = id ? index.positionsById.get(id) ?? null : null;
   const parent = position?.parentId
@@ -123,6 +130,24 @@ export default function PositionProfilePage() {
     if (drilledOrNote.length === 0) return null;
     return drilledOrNote[drilledOrNote.length - 1];
   }, [timeline]);
+
+  if (taxLoading) {
+    return (
+      <>
+        <style>{css}</style>
+        <div className="pp-root">
+          <div className="pp-shell">
+            <div className="pp-hdr">
+              <div>
+                <h1>Position</h1>
+                <div className="no mono">Loading…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   if (!position) {
     return (

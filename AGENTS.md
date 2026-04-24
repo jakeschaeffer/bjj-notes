@@ -358,3 +358,256 @@ npm run dev
 # Lint
 npm run lint
 ```
+
+---
+
+## Lessons & Gotchas (April 2026, post-design landing)
+
+These are real bugs, near-misses, and patterns worth knowing before you
+edit. Each has bitten us once already.
+
+### URL-encoded dynamic segments
+
+Custom taxonomy IDs contain `:` (e.g. `custom:hip-bump-sweep-abc12345`).
+When a `<Link href="/techniques/${id}">` navigates, the `:` may be
+encoded to `%3A`. Whether `useParams()` returns it decoded or encoded
+depends on the navigation path (client transition vs. hard load) and is
+not consistent across Next.js versions.
+
+**Always decode dynamic segments before using them as Map keys:**
+
+```ts
+const params = useParams<{ id: string }>();
+const id = params?.id ? decodeURIComponent(params.id) : "";
+```
+
+`decodeURIComponent` is a no-op for already-decoded strings, so this is
+safe in both directions. See `src/app/(main)/techniques/[id]/page.tsx`
+and `src/app/(main)/positions/[id]/page.tsx`.
+
+### `useUserTaxonomy` async load — guard with `loading`
+
+The hook fetches `user_taxonomy.data` from Supabase asynchronously. On
+first render it returns `emptyState`, so any custom (`custom:*`)
+position or technique looked up via `index.positionsById.get(id)` /
+`index.techniquesById.get(id)` will be **undefined** until the fetch
+resolves and the component re-renders.
+
+Pages that resolve a custom ID (the technique/position profile pages)
+must check `loading` from the hook before deciding the resource is
+"not found". Without this guard, the user sees a "Not found" flash —
+or, on slow networks, a persistent false negative until the fetch
+lands.
+
+```ts
+const { index, loading: taxLoading } = useUserTaxonomy();
+const technique = index.techniquesById.get(id) ?? null;
+if (taxLoading) return <Loading />;
+if (!technique) return <NotFound />;
+```
+
+System techniques (no `custom:` prefix) are merged into `index` from
+the very first render via `systemTechniques`, so they aren't affected.
+
+### `user_taxonomy` persist is fire-and-forget
+
+`updateState` inside `useUserTaxonomy` calls `persistState` via
+`void persistState(next)` — the upsert runs in the background and the
+caller doesn't await it. Two consequences:
+
+1. **Multiple back-to-back mutators race.** `addCustomTechnique(...)`
+   followed immediately by `addCustomPosition(...)` fires two
+   parallel upserts of the same row; last-write-wins.
+2. **A mutation right before navigation can lose.** If you call
+   `addCustomTechnique` and then `router.push` in the same handler,
+   the upsert is in flight when the page unmounts. Most browsers
+   complete pending fetches but not all. Recovery: re-run the
+   mutation, or treat the in-flight write as best-effort.
+
+When recording multiple things together (the log page does this on
+save: partner names, technique progress, tag usage), batch them into
+one `updateState` call OR await an explicit save method (does not
+exist yet — see `docs/AUDIT_FINDINGS.md`).
+
+### CSS variables across React siblings
+
+The branch designs scope variables (`--bg`, `--ink`, `--accent`, …) on
+the page's design root (`.v1-root`, `.v2-root`, `.tp-root`, etc.).
+Modals rendered in the same component tree as siblings of that root
+do **not** inherit the variables, even though they're descendants of
+the same React tree. CSS inheritance follows the DOM, and a modal
+positioned `fixed` at the body level is a sibling, not a descendant,
+of the root.
+
+**Fix:** redeclare the variables on the modal scrim element itself:
+
+```css
+.v1-modal-scrim {
+  position: fixed;
+  inset: 0;
+  /* re-declare so var(--ink) resolves inside the modal */
+  --bg: #f5f2ed;
+  --ink: #1a1815;
+  --accent: oklch(0.45 0.12 25);
+}
+```
+
+This bit us once when the V1/V2 mic modals rendered with no
+background. Symptom: modal looks transparent / "weird overlay".
+
+### Cascading button styles
+
+Watch out for over-broad descendant selectors:
+
+```css
+/* Wrong — matches every <button> inside .pcompose, including chips */
+.v2-root .pcompose button { width: 44px; ... }
+```
+
+The pcompose container has the `+` add button as a direct child *and*
+nested partner-suggestion chips inside `.pcompose-field`. The rule
+above forced every chip to render as a 44px square. Use child
+selectors or specific class scopes:
+
+```css
+.v2-root .pcompose > button { ... }       /* direct child only */
+.v2-root button.partner-chip { ... }      /* explicit override */
+```
+
+### setState inside useEffect
+
+The repo's ESLint config bans synchronous `setState` calls in effect
+bodies (`react-hooks/set-state-in-effect`). The rule is right most of
+the time but wrong for "hydrate from async data" patterns where the
+external system is genuinely async (e.g. loading a session by `?edit=<id>`
+after the sessions hook has fetched). Use a single
+`eslint-disable-next-line` with a short justification and keep the
+hydration guarded by a ref so it runs once per id.
+
+```ts
+// eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating drafts from async-loaded session data.
+setClassIdx(classMatch >= 0 ? classMatch : 0);
+setMoves(rebuiltMoves);
+setRounds(rebuiltRounds);
+```
+
+### Browser back button on detail pages
+
+`<Link href="/sessions">Back</Link>` on the session detail always
+returns to the sessions list, regardless of where the user came from
+(e.g. they entered the session via a technique profile timeline). The
+fix is `router.back()` with a `/sessions` fallback when there's no
+history (deep link):
+
+```tsx
+<button onClick={() => {
+  if (window.history.length > 1) router.back();
+  else router.push("/sessions");
+}}>Back</button>
+```
+
+### Negative-margin design roots
+
+Each design root (`.v1-root`, `.v2-root`, `.sd-root`, `.tp-root`,
+`.pp-root`) bleeds edge-to-edge by negating the parent `<main>`'s
+padding:
+
+```css
+.v1-root {
+  margin: -24px -20px -48px -20px; /* matches main's padding */
+  padding-bottom: 24px;
+}
+```
+
+If you change `(main)/layout.tsx`'s `app-main` padding, **update
+every design root**. Mismatches show as a visible gap or a horizontal
+scroll bar.
+
+### React event delegation in MCP/eval scripts
+
+`element.focus()` triggers the native `focus` event, which doesn't
+bubble. React listens via delegated `focusin` at the root, which DOES
+bubble. When testing the partner autocomplete or composer focus
+states from an eval script, dispatch both:
+
+```js
+input.focus();
+input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+```
+
+Without this, `onFocus` handlers don't fire and you'll wrongly
+conclude the autocomplete is broken.
+
+### Inspecting Supabase data without going through the UI
+
+The MCP-controlled preview browser sometimes loses Supabase auth
+cookies between navigations, making it tedious to log in repeatedly
+just to inspect data. Use the admin scripts:
+
+- `scripts/check-tax.mjs` — dumps custom positions/techniques and
+  partner names for the test user.
+- `scripts/check-sessions.mjs` — lists session technique IDs and
+  cross-references them against the user_taxonomy table to find
+  orphaned references.
+
+```bash
+node --env-file=.env.local scripts/check-tax.mjs
+node --env-file=.env.local scripts/check-sessions.mjs
+```
+
+These read via the `SUPABASE_SECRET_KEY` (admin) and bypass RLS.
+
+### `.next` cache + branch switches
+
+Switching git branches while `npm run dev` is running can leave the
+dev server serving compiled artifacts from the previous branch's
+code. Symptom: edits land in the file but the browser shows the old
+UI. **`rm -rf .next && npm run dev`** clears it. Build (`npm run
+build`) writes to the same dir and can confuse the dev server too.
+
+### Custom taxonomy is per-user, sessions reference IDs
+
+A session's `techniques[].techniqueId` is a string ID, not a foreign
+key. If a custom technique definition (`user_taxonomy.data.techniques`)
+is missing for that ID, the session detail renders "Unknown technique"
+and any "click the technique" link points to a profile that says
+"Not found".
+
+This can happen if:
+- The custom technique upsert raced with a navigation and was lost
+  (see "fire-and-forget" above).
+- The user manually edited the JSONB row.
+- A session was migrated from another account (no migration path
+  exists today, but historically test data has moved around).
+
+If you suspect orphan IDs, run `scripts/check-sessions.mjs` to find
+them. Recovery is currently manual: re-add the custom via the log
+flow, or edit `user_taxonomy.data.techniques` directly.
+
+### Profile pages: the "Guide" concept
+
+The technique and position profile pages ship a "Guide" section that
+auto-seeds from the **first logged drilled entry's** freeform `notes`
+(plus any `keyDetails` cues, rendered as paper-yellow cards
+underneath). This came from a real user observation: people write
+the most detailed text the first time they drill a move, and rarely
+go back to curate `Personal notes` manually.
+
+If you change the seeding heuristic, preserve the "Make mine"
+button — clicking it copies the seed into the textarea so users can
+adopt the first-log text as a starting draft in one click. After
+they save, the personal note takes precedence over the seed; the
+seed remains visible only as the timeline entry.
+
+### Working preferences (per the project owner)
+
+- **Push-as-you-go**: small, focused commits. Push to `dev` (or main
+  if working on a one-off line) without batching.
+- **Verify before claiming done**: render in the preview browser and
+  click the actual flow, don't just `tsc --noEmit`.
+- **Surface trade-offs explicitly**: when you have to defer a
+  feature (e.g. attempted-vs-executed for sparring submissions), say
+  so in the commit message and link to where it'd plug in.
+- **Don't generate documentation files unless asked.** This file
+  exists; update it. README/AGENTS/DESIGN/TECHNICAL_OVERVIEW are the
+  designated documentation surfaces.

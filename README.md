@@ -7,9 +7,19 @@ A personal training journal for Brazilian Jiu-Jitsu practitioners. Track techniq
 - **Session Logging** - Log training sessions with techniques drilled and sparring rounds
 - **Voice Notes** - Record voice notes that are transcribed and automatically parsed into structured session data
 - **Sparring Tracker** - Track rounds, partners, submissions, and dominant/stuck positions
-- **Technique Taxonomy** - Hierarchical position and technique database with search
+- **Technique Taxonomy** - Hierarchical position and technique database with search; click any
+  position or technique chip to drill into its profile.
+- **Technique & Position Profiles** - Dedicated `/techniques/<id>` and
+  `/positions/<id>` pages with stats (first seen, drilled count,
+  sparring appearances, notes), an auto-seeded **Guide** (the first
+  logged note becomes the de-facto how-to until you write your own),
+  and a Timeline of every appearance across sessions.
 - **Progress Tracking** - View your training history and technique progress over time
-- **Partner Management** - Keep track of training partners and sparring history
+- **Partner Management** - Keep track of training partners and sparring history;
+  partner names you log are remembered as autocomplete suggestions for
+  future sessions.
+- **Mobile-first chrome** - Site nav collapses to a hamburger menu below
+  the `md` breakpoint with a slide-down dropdown of routes.
 
 ## Tech Stack
 
@@ -94,18 +104,29 @@ src/
 ├── app/                    # Next.js App Router pages
 │   ├── (auth)/            # Auth pages (login, signup)
 │   ├── (main)/            # Main app pages
+│   │   ├── layout.tsx     # Site shell: paper bg, fonts (Inter +
+│   │   │                  #   IBM Plex Mono), SiteHeader w/ hamburger
 │   │   ├── log/           # Session logging + edit (via ?edit=<id>)
 │   │   ├── sessions/      # Session history list
-│   │   │   └── [id]/      # Session detail + delete
-│   │   ├── taxonomy/      # Position & technique reference
+│   │   │   └── [id]/      # Session detail + delete; tech/pos names
+│   │   │                  #   are clickable links into the profiles
+│   │   ├── taxonomy/      # Position & technique reference (chips
+│   │   │                  #   route to the profile pages)
+│   │   ├── techniques/    # Technique library (modal preview)
+│   │   │   └── [id]/      # Full technique profile (stats, Guide,
+│   │   │                  #   timeline)
+│   │   ├── positions/     # (no list page)
+│   │   │   └── [id]/      # Full position profile (stats, Guide,
+│   │   │                  #   structure, timeline)
 │   │   ├── progress/      # Progress dashboard
-│   │   ├── techniques/    # Technique library
 │   │   └── settings/      # Invite codes + partner list
 │   └── api/               # API routes (transcripts, extractions,
 │                          #   invite-codes, auth/signup, env-check)
 ├── components/            # React components
 │   ├── ui/               # Button, Card, FormField, Modal, Tag
 │   ├── auth/             # AuthGuard, AccountActions
+│   ├── site/             # SiteHeader (client component, hamburger
+│   │                     #   nav at mobile)
 │   ├── positions/        # PositionPicker
 │   ├── techniques/       # TechniquePicker, TagPicker
 │   ├── sparring/         # PartnerPicker (SparringRoundSection is
@@ -163,6 +184,45 @@ Voice notes are transcribed and parsed using AI to automatically extract:
 - Techniques mentioned
 - Sparring round details
 
+### Technique & Position Profiles
+
+Every technique and position has a dedicated profile page at
+`/techniques/<id>` and `/positions/<id>`. Profiles include:
+
+- **Stats**: first seen, drilled count, sparring appearances, note
+  count.
+- **Guide**: a readable how-to for the move/position. If you've
+  written a personal note (`updateTechniqueNote` /
+  `updatePositionNote`), that becomes the guide. Otherwise, the
+  earliest logged drilled entry's freeform `notes` (and any
+  `keyDetails` cues) auto-seeds the guide, captioned `from first
+  log · <date>`. The "Make mine" button copies the seed into the
+  textarea so you can adopt it as a starting draft.
+- **Structure** (positions only): child positions and the techniques
+  available from this position, all clickable.
+- **Timeline**: every session where the move/position appeared
+  (drilled, position note, or sparring), each entry linking back to
+  the session detail.
+
+Position and technique names in `/sessions/<id>` and the round-detail
+tag pills are clickable — they route to these profile pages. The
+session detail Back button calls `router.back()` so you return to
+wherever you came from (a profile timeline, a search, etc.) rather
+than the sessions list every time.
+
+### Custom IDs and URL encoding
+
+Custom positions and techniques created from the log page get IDs
+like `custom:hip-bump-sweep-abc12345`. The `:` may be URL-encoded as
+`%3A` in some navigations. Profile pages decode the segment defensively:
+
+```ts
+const id = params?.id ? decodeURIComponent(params.id) : "";
+```
+
+If you build a new dynamic route that consumes a custom-formatted ID,
+do the same.
+
 ## Scripts
 
 ```bash
@@ -171,6 +231,18 @@ npm run build          # Build for production
 npm run start          # Start production server
 npm run lint           # Run ESLint
 npm run seed:test-user # Create/reset a confirmed test user for local login
+```
+
+Diagnostic scripts (read-only via `SUPABASE_SECRET_KEY`):
+
+```bash
+node --env-file=.env.local scripts/check-tax.mjs
+# Dumps the test user's custom positions, custom techniques, and
+# saved partner names from user_taxonomy.
+
+node --env-file=.env.local scripts/check-sessions.mjs
+# Lists session technique IDs and flags any custom IDs that are
+# referenced by sessions but missing from user_taxonomy (orphans).
 ```
 
 ## License

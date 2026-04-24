@@ -43,6 +43,7 @@ const emptyState: UserTaxonomyState = {
 export function useUserTaxonomy() {
   const { user, loading: authLoading } = useAuth();
   const [state, setState] = useState<UserTaxonomyState>(emptyState);
+  const [loading, setLoading] = useState(true);
 
   const persistState = useCallback(
     async (next: UserTaxonomyState) => {
@@ -87,6 +88,7 @@ export function useUserTaxonomy() {
       Promise.resolve().then(() => {
         if (!cancelled) {
           setState(emptyState);
+          setLoading(false);
         }
       });
       return () => {
@@ -108,6 +110,7 @@ export function useUserTaxonomy() {
       if (error) {
         console.error("Failed to load taxonomy", error.message);
         setState(emptyState);
+        setLoading(false);
         return;
       }
 
@@ -123,6 +126,7 @@ export function useUserTaxonomy() {
         techniqueNotes: stored.techniqueNotes ?? [],
         positionNotes: stored.positionNotes ?? [],
       });
+      setLoading(false);
     };
 
     void load();
@@ -461,6 +465,7 @@ export function useUserTaxonomy() {
   }, [updateState]);
 
   return {
+    loading,
     positions,
     techniques,
     index,

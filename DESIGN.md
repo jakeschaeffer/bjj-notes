@@ -27,6 +27,65 @@ See `docs/AUDIT_FINDINGS.md` for known bugs in the shipped surfaces.
 
 ---
 
+## Live design system (April 2026)
+
+The amber/zinc palette is being phased out. The current design language
+across `(main)` routes is the **paper / oxblood ledger** system, originally
+prototyped on `design/log-v1-ledger` and now landed on `main`:
+
+### Tokens
+
+Defined as CSS variables on each page's design-root element (`.v1-root`,
+`.tp-root`, `.pp-root`, `.sd-root`, etc.) and re-declared on modal scrims
+(see `AGENTS.md` for the why).
+
+| Token | Value | Use |
+|---|---|---|
+| `--bg` | `#f5f2ed` | Paper background |
+| `--ink` | `#1a1815` | Charcoal text & dividers |
+| `--accent` | `oklch(0.45 0.12 25)` | Oxblood — active states, counts, primary CTAs |
+| `--cream` | `#faf7f1` | Soft surfaces (nested cards, totals cells) |
+| `--paper-yellow` | `#fff9e4` | Cue cards, technique chips |
+
+### Type
+
+- **Inter** 400/500/600/700 — body, labels.
+- **IBM Plex Mono** 400/500/600 — dates, counts, codes (`.mono` class).
+
+Loaded once at `src/app/(main)/layout.tsx` via `next/font/google`.
+
+### Common patterns
+
+- **Section labels**: `.label` — uppercase, letterspaced, opacity 0.55.
+- **Totals strip**: ledger style (large mono numbers above tiny labels)
+  on V1-derived pages; cell-grid style (small label above number, in
+  cream-bg cells inside a white card) on V2-derived pages and on the
+  /sessions list.
+- **Cue cards**: paper-yellow bg, oxblood left rule (`border-left: 3px
+  solid oklch(0.7 0.12 75)`), IBM Plex Mono body. Used everywhere a
+  per-move note shows up — log drawer, session detail, profile
+  timelines, the Guide section.
+- **Pair display**: position pill (rounded `999px`, `rgba(26,24,21,0.08)`
+  bg) → arrow → bold technique. The session-detail rows and taxonomy
+  position cards both use this.
+
+### Mobile chrome
+
+`SiteHeader` (`src/components/site/site-header.tsx`) collapses the nav
+to a hamburger below the `md` breakpoint (768px). The dropdown is a
+full-width sheet with dotted dividers between routes; the active route
+highlights in oxblood.
+
+### Branch lineage
+
+- `design/log-v1-ledger` and `design/log-v2-chips` are the original
+  exploration branches. Most of the live design system descends from
+  V1 Ledger; V2's pair/cue-card patterns inform the per-move display.
+- The branches still exist for reference. Active development happens
+  on `main` (or `dev` for shared work).
+
+---
+
 ## 1. Session Logging Screen (`/log`)
 
 ### Original Current State (now superseded)
