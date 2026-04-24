@@ -96,6 +96,15 @@ export default function TechniqueProfilePage() {
   const firstSeen = timeline.length
     ? timeline[timeline.length - 1].date
     : undefined;
+
+  const firstDrilled = useMemo(() => {
+    const drilled = timeline.filter(
+      (e): e is Extract<TimelineEntry, { kind: "drilled" }> =>
+        e.kind === "drilled",
+    );
+    if (drilled.length === 0) return null;
+    return drilled[drilled.length - 1];
+  }, [timeline]);
   const noteCount =
     timeline.reduce(
       (sum, e) =>
@@ -187,19 +196,23 @@ export default function TechniqueProfilePage() {
             </div>
           </section>
 
-          <section className="tp-section">
+          <section className="tp-section tp-guide-section">
             <div className="tp-label">
-              <span>Personal notes</span>
+              <span>Guide</span>
               {!editing && (
                 <button
                   type="button"
                   className="tp-link-btn"
                   onClick={() => {
                     setEditing(true);
-                    setEditNotes(personalNote);
+                    setEditNotes(
+                      personalNote ||
+                        firstDrilled?.note ||
+                        (firstDrilled?.cues ?? []).join("\n"),
+                    );
                   }}
                 >
-                  {personalNote ? "Edit" : "Add"}
+                  {personalNote ? "Edit" : firstDrilled ? "Make mine" : "Add"}
                 </button>
               )}
             </div>
@@ -208,8 +221,8 @@ export default function TechniqueProfilePage() {
                 <textarea
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Reference notes — mechanics, common pitfalls, coaching cues…"
-                  rows={6}
+                  placeholder="Mechanics, common pitfalls, coaching cues…"
+                  rows={8}
                 />
                 <div className="tp-edit-row">
                   <button
@@ -227,16 +240,37 @@ export default function TechniqueProfilePage() {
                       setEditing(false);
                     }}
                   >
-                    Save notes
+                    Save guide
                   </button>
                 </div>
               </div>
             ) : personalNote ? (
-              <div className="tp-note">{personalNote}</div>
+              <div className="tp-guide">{personalNote}</div>
+            ) : firstDrilled &&
+              (firstDrilled.note || firstDrilled.cues.length > 0) ? (
+              <div className="tp-guide-seeded">
+                {firstDrilled.note && (
+                  <div className="tp-guide">{firstDrilled.note}</div>
+                )}
+                {firstDrilled.cues.length > 0 && (
+                  <div className="tp-guide-cues">
+                    {firstDrilled.cues.map((cue, i) => (
+                      <div key={i} className="tp-guide-cue">
+                        {cue}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="tp-guide-caption mono">
+                  from first log ·{" "}
+                  {format(parseLocalDate(firstDrilled.date), "MMM d, yyyy")}
+                </div>
+              </div>
             ) : (
               <div className="tp-muted">
-                No personal notes yet. Add reference notes to capture
-                mechanics, common pitfalls, or coaching cues.
+                No guide yet. The first session note you log for this
+                technique becomes the guide automatically — or tap
+                &ldquo;Add&rdquo; to write one now.
               </div>
             )}
           </section>
@@ -432,6 +466,39 @@ const css = `
     line-height: 1.55;
     color: rgba(26, 24, 21, 0.88);
     white-space: pre-wrap;
+  }
+  .tp-guide-section { padding: 20px; }
+  .tp-guide {
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(26, 24, 21, 0.92);
+    white-space: pre-wrap;
+  }
+  .tp-guide-seeded {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .tp-guide-cues {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .tp-guide-cue {
+    background: var(--paper-yellow);
+    border-left: 3px solid oklch(0.7 0.12 75);
+    padding: 10px 14px;
+    font-family: var(--font-ibm-plex-mono), monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #3a2e12;
+  }
+  .tp-guide-caption {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.45;
+    margin-top: 2px;
   }
   .tp-muted {
     font-size: 12px;

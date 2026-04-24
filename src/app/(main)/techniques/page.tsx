@@ -167,6 +167,9 @@ export default function TechniquesPage() {
   const activeTimesInSparring = activeTechniqueId
     ? timesInSparringByTech.get(activeTechniqueId) ?? 0
     : 0;
+  const activeFirstDrilled = activeSessionNotes.length
+    ? activeSessionNotes[activeSessionNotes.length - 1]
+    : null;
 
   function openTechnique(id: string) {
     setActiveTechniqueId(id);
@@ -354,19 +357,27 @@ export default function TechniquesPage() {
               </div>
             </section>
 
-            <section className="t-modal-section">
+            <section className="t-modal-section t-guide-section">
               <div className="label">
-                <span>Personal notes</span>
+                <span>Guide</span>
                 {!editing && (
                   <button
                     type="button"
                     className="t-link-btn"
                     onClick={() => {
                       setEditing(true);
-                      setEditNotes(activeTechniqueNote);
+                      setEditNotes(
+                        activeTechniqueNote ||
+                          activeFirstDrilled?.notes ||
+                          (activeFirstDrilled?.keyDetails ?? []).join("\n"),
+                      );
                     }}
                   >
-                    {activeTechniqueNote ? "Edit" : "Add"}
+                    {activeTechniqueNote
+                      ? "Edit"
+                      : activeFirstDrilled
+                        ? "Make mine"
+                        : "Add"}
                   </button>
                 )}
               </div>
@@ -375,8 +386,8 @@ export default function TechniquesPage() {
                   <textarea
                     value={editNotes}
                     onChange={(e) => setEditNotes(e.target.value)}
-                    placeholder="Reference notes — mechanics, common pitfalls, coaching cues…"
-                    rows={5}
+                    placeholder="Mechanics, common pitfalls, coaching cues…"
+                    rows={6}
                   />
                   <div className="t-edit-row">
                     <button
@@ -394,14 +405,41 @@ export default function TechniquesPage() {
                         setEditing(false);
                       }}
                     >
-                      Save notes
+                      Save guide
                     </button>
                   </div>
                 </div>
               ) : activeTechniqueNote ? (
-                <div className="t-note">{activeTechniqueNote}</div>
+                <div className="t-guide">{activeTechniqueNote}</div>
+              ) : activeFirstDrilled &&
+                (activeFirstDrilled.notes ||
+                  activeFirstDrilled.keyDetails.length > 0) ? (
+                <div className="t-guide-seeded">
+                  {activeFirstDrilled.notes && (
+                    <div className="t-guide">{activeFirstDrilled.notes}</div>
+                  )}
+                  {activeFirstDrilled.keyDetails.length > 0 && (
+                    <div className="t-guide-cues">
+                      {activeFirstDrilled.keyDetails.map((cue, i) => (
+                        <div key={i} className="t-guide-cue">
+                          {cue}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="t-guide-caption mono">
+                    from first log ·{" "}
+                    {format(
+                      parseLocalDate(activeFirstDrilled.date),
+                      "MMM d, yyyy",
+                    )}
+                  </div>
+                </div>
               ) : (
-                <div className="t-muted">No personal notes.</div>
+                <div className="t-muted">
+                  No guide yet. The first session note you log for this
+                  technique becomes the guide automatically.
+                </div>
               )}
             </section>
 
@@ -754,6 +792,38 @@ const css = `
     line-height: 1.5;
     color: rgba(26, 24, 21, 0.85);
     padding-top: 4px;
+  }
+  .t-guide-section { padding: 18px 20px; }
+  .t-guide {
+    font-size: 14px;
+    line-height: 1.6;
+    color: rgba(26, 24, 21, 0.92);
+    white-space: pre-wrap;
+  }
+  .t-guide-seeded {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .t-guide-cues {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .t-guide-cue {
+    background: var(--paper-yellow);
+    border-left: 3px solid oklch(0.7 0.12 75);
+    padding: 8px 12px;
+    font-family: var(--font-ibm-plex-mono), monospace;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #3a2e12;
+  }
+  .t-guide-caption {
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.45;
   }
   .t-muted {
     font-size: 12px;
