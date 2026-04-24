@@ -1,27 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import Fuse from "fuse.js";
 
-import { PositionPicker } from "@/components/positions/position-picker";
-import { TechniquePicker } from "@/components/techniques/technique-picker";
-import { TagPicker } from "@/components/techniques/tag-picker";
-import {
-  ExtractionReviewPanel,
-  type UnmatchedItem,
-} from "@/components/extraction/extraction-review-panel";
-import {
-  TaxonomyCard,
-  ClickableTaxonomy,
-} from "@/components/taxonomy/taxonomy-card";
-import { Button, Card, FormField, Modal, Tag } from "@/components/ui";
 import { supabase } from "@/db/supabase/client";
-import { useLocalSessions } from "@/hooks/use-local-sessions";
 import { useAuth } from "@/hooks/use-auth";
+import { useLocalSessions } from "@/hooks/use-local-sessions";
 import { useUserTaxonomy } from "@/hooks/use-user-taxonomy";
-import { COMMON_TAGS, normalizeTag } from "@/lib/taxonomy/tags";
 import {
   matchExtraction,
   type ExtractionPayload,
@@ -29,2915 +14,1510 @@ import {
 } from "@/lib/extraction/match-taxonomy";
 import type {
   BeltLevel,
-  RoundSubmission,
+  GiNoGi,
   Session,
   SessionPositionNote,
   SessionTechnique,
+  SessionType,
   SparringRound,
-  Technique,
 } from "@/lib/types";
-import { createId, parseLocalDate, todayLocalISO } from "@/lib/utils";
+import { createId, todayLocalISO } from "@/lib/utils";
 
-const sessionTypes = [
-  "regular-class",
-  "open-mat",
-  "private",
-  "competition",
-  "seminar",
-  "drilling-only",
-] as const;
+import { suggestPositions, suggestTechniques } from "./_taxonomy-match";
 
-
-type DraftTechnique = {
-  id: string;
-  positionId: string | null;
-  techniqueId: string | null;
-  keyDetails: string[];
-  notes: string;
-  expanded: boolean;
-  notesExpanded: boolean;
-  fromExtraction?: boolean;
+type MoveDraft = {
+  key: string;
+  posId: string | null;
+  posName: string;
+  techId: string | null;
+  techName: string;
+  note: string;
 };
 
-type DraftRound = {
-  id: string;
+type RoundDraft = {
+  key: string;
   partnerName: string;
-  partnerBelt: BeltLevel | null;
-  submissionsFor: RoundSubmission[];
-  submissionsAgainst: RoundSubmission[];
-  submissionsForCount: number;
-  submissionsAgainstCount: number;
-  dominantPositions: string[];
-  stuckPositions: string[];
-  notes: string;
-  notesExpanded: boolean;
-  fromExtraction?: boolean;
+  belt: BeltLevel;
+  subsFor: number;
+  subsAgainst: number;
 };
 
-function createDraftTechnique(): DraftTechnique {
-  return {
-    id: createId(),
-    positionId: null,
-    techniqueId: null,
-    keyDetails: [],
-    notes: "",
-    expanded: false,
-    notesExpanded: false,
-  };
-}
-
-function createDraftRound(): DraftRound {
-  return {
-    id: createId(),
-    partnerName: "",
-    partnerBelt: null,
-    submissionsFor: [],
-    submissionsAgainst: [],
-    submissionsForCount: 0,
-    submissionsAgainstCount: 0,
-    dominantPositions: [],
-    stuckPositions: [],
-    notes: "",
-    notesExpanded: false,
-  };
-}
-
-const beltOptions: Array<{
-  value: BeltLevel;
+type ClassTypeOption = {
   label: string;
-  dotClass: string;
-}> = [
-  { value: "white", label: "White belt", dotClass: "bg-slate-50 border-slate-300" },
-  { value: "blue", label: "Blue belt", dotClass: "bg-blue-500 border-blue-600" },
-  { value: "purple", label: "Purple belt", dotClass: "bg-purple-500 border-purple-600" },
-  { value: "brown", label: "Brown belt", dotClass: "bg-amber-700 border-amber-800" },
-  { value: "black", label: "Black belt", dotClass: "bg-zinc-900 border-zinc-950" },
-  { value: "unknown", label: "Unknown", dotClass: "bg-zinc-200 border-zinc-300" },
-];
-
-const commonSubmissionIds = [
-  "rear-naked-choke",
-  "triangle-choke",
-  "armbar-from-guard",
-  "armbar-from-mount",
-  "kimura",
-  "americana",
-  "guillotine",
-  "heel-hook",
-];
-
-const ambiguousSubmissions: Record<string, string[]> = {
-  kimura: ["guard.closed", "side-control.standard", "side-control.north-south", "guard.half"],
-  "triangle-choke": ["guard.closed", "mount"],
-  guillotine: ["standing", "guard.closed"],
-  omoplata: ["guard.closed", "guard.open"],
+  sessionType: SessionType;
+  giOrNogi: GiNoGi;
 };
 
-const sparringDominantPositions = [
-  { id: "back-control", label: "Back Control" },
-  { id: "mount", label: "Mount" },
-  { id: "side-control", label: "Side Control" },
-  { id: "knee-on-belly", label: "Knee on Belly" },
-  { id: "side-control.north-south", label: "North South" },
+const CLASS_TYPES: ClassTypeOption[] = [
+  { label: "Gi", sessionType: "regular-class", giOrNogi: "gi" },
+  { label: "No-Gi", sessionType: "regular-class", giOrNogi: "nogi" },
+  { label: "Open Mat", sessionType: "open-mat", giOrNogi: "both" },
+  { label: "Comp", sessionType: "competition", giOrNogi: "both" },
 ];
 
-const sparringStuckPositions = [
-  { id: "bottom-side-control", label: "Bottom Side Control" },
-  { id: "bottom-mount", label: "Bottom Mount" },
-  { id: "back-exposed", label: "Back Exposed" },
-  { id: "turtle", label: "Turtle" },
-  { id: "guard", label: "Guard (bottom)" },
-];
+const BELT_ORDER: BeltLevel[] = ["white", "blue", "purple", "brown", "black"];
+const BELT_COLORS: Record<string, string> = {
+  white: "#e8e2d5",
+  blue: "#2a4d7a",
+  purple: "#4a2a6a",
+  brown: "#5a3820",
+  black: "#1a1815",
+  unknown: "#b8b0a0",
+};
 
-function buildTagSuggestions(technique: Technique | null, userTags: string[]) {
-  const suggestions: string[] = [];
-  const seen = new Set<string>();
-
-  const addTags = (tags: string[] | undefined) => {
-    if (!tags) {
-      return;
-    }
-    for (const tag of tags) {
-      const normalized = normalizeTag(tag);
-      if (!normalized || seen.has(normalized)) {
-        continue;
-      }
-      seen.add(normalized);
-      suggestions.push(normalized);
-    }
+function emptyMove(): MoveDraft {
+  return {
+    key: createId(),
+    posId: null,
+    posName: "",
+    techId: null,
+    techName: "",
+    note: "",
   };
-
-  addTags(technique?.keyDetails);
-  addTags(userTags);
-  addTags(COMMON_TAGS);
-
-  return suggestions;
 }
 
-function getRecentIds<T>(
-  items: T[],
-  extractId: (item: T) => string | null,
-  max: number,
-) {
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const item of items) {
-    const id = extractId(item);
-    if (!id || seen.has(id)) {
-      continue;
-    }
-    seen.add(id);
-    result.push(id);
-    if (result.length >= max) {
-      break;
-    }
-  }
-
-  return result;
+function emptyRound(): RoundDraft {
+  return {
+    key: createId(),
+    partnerName: "",
+    belt: "white",
+    subsFor: 0,
+    subsAgainst: 0,
+  };
 }
 
-export default function LogSessionPage() {
-  const { sessions, addSession, updateSession } = useLocalSessions();
-  const { user } = useAuth();
+function formatHeaderDate(iso: string): string {
+  const d = new Date(`${iso}T12:00:00`);
+  return d.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+export default function LogPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const editSessionId = searchParams?.get("edit") ?? null;
+  const editSessionId = searchParams.get("edit");
+
+  const { user } = useAuth();
+  const { sessions, getSessionById, addSession, updateSession } =
+    useLocalSessions();
   const {
-    index,
-    tagSuggestions,
+    positions: taxPositions,
+    index: taxIndex,
     partnerSuggestions,
     addCustomPosition,
     addCustomTechnique,
-    recordTagUsage,
-    recordTechniqueProgress,
     recordPartnerNames,
   } = useUserTaxonomy();
 
-  // Section visibility
-  const [showTechniques, setShowTechniques] = useState(true);
-  const [showSparring, setShowSparring] = useState(true);
-  const [showMetadata, setShowMetadata] = useState(false);
-  const [compactRounds, setCompactRounds] = useState(true);
-  const [expandedRoundIds, setExpandedRoundIds] = useState<Set<string>>(
-    new Set(),
+  const [date, setDate] = useState<string>(todayLocalISO());
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const [classIdx, setClassIdx] = useState<number>(0);
+  const [moves, setMoves] = useState<MoveDraft[]>([emptyMove()]);
+  const [rounds, setRounds] = useState<RoundDraft[]>([]);
+  const [openNoteKey, setOpenNoteKey] = useState<string | null>(null);
+  const [focusedCell, setFocusedCell] = useState<
+    | { moveKey: string; field: "pos" | "tech" }
+    | null
+  >(null);
+  const [focusedPartnerKey, setFocusedPartnerKey] = useState<string | null>(
+    null,
   );
+  const [saving, setSaving] = useState<"idle" | "saving" | "error">("idle");
+  const [saveError, setSaveError] = useState<string>("");
 
-  // Post-save summary
-  const [savedSummary, setSavedSummary] = useState<{
-    date: string;
-    techniques: number;
-    rounds: number;
-    subsFor: number;
-    subsAgainst: number;
-    sessionId: string;
-    isUpdate: boolean;
-  } | null>(null);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceText, setVoiceText] = useState("");
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceError, setVoiceError] = useState<string>("");
 
-  // Which session (if any) is currently loaded in the form.
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  // "new"  — brand-new session, form is editable
-  // "view" — an existing saved session is loaded, form is read-only
-  // "edit" — the user explicitly clicked Edit on a saved session
-  const [viewMode, setViewMode] = useState<"new" | "view" | "edit">("new");
-  const readOnly = viewMode === "view";
-
-  // Explicit open-state for the notes/reflections accordion
-  const [notesOpen, setNotesOpen] = useState(false);
-
-  // Taxonomy card state
-  const [taxonomyCard, setTaxonomyCard] = useState<{
-    type: "position" | "technique";
-    id: string;
-  } | null>(null);
-
-  // Session metadata
-  const [date, setDate] = useState(() => todayLocalISO());
-  const [sessionType, setSessionType] = useState<
-    (typeof sessionTypes)[number]
-  >(sessionTypes[0]);
-  const [giOrNogi, setGiOrNogi] = useState<"gi" | "nogi" | "both">("gi");
-  const [durationMinutes, setDurationMinutes] = useState<number | "">("");
-  const [notes, setNotes] = useState("");
-  const [insights, setInsights] = useState("");
-  const [goalsForNext, setGoalsForNext] = useState("");
-
-  // Technique drafts
-  const [techniqueDrafts, setTechniqueDrafts] = useState<DraftTechnique[]>([
-    createDraftTechnique(),
-  ]);
-
-  // Sparring rounds
-  const [roundDrafts, setRoundDrafts] = useState<DraftRound[]>([createDraftRound()]);
-  const [beltPickerRoundId, setBeltPickerRoundId] = useState<string | null>(null);
-  const [submissionPicker, setSubmissionPicker] = useState<{
-    roundId: string;
-    side: "for" | "against";
-  } | null>(null);
-  const [submissionSearch, setSubmissionSearch] = useState("");
-  const [ambiguousSubmission, setAmbiguousSubmission] = useState<{
-    roundId: string;
-    side: "for" | "against";
-    techniqueId: string;
-  } | null>(null);
-  const [positionPickerTarget, setPositionPickerTarget] = useState<{
-    roundId: string;
-    type: "dominant" | "stuck";
-  } | null>(null);
-  const [positionSearch, setPositionSearch] = useState("");
-  const [customSubmissionTarget, setCustomSubmissionTarget] = useState<{
-    roundId: string;
-    side: "for" | "against";
-  } | null>(null);
-  const [customSubmissionName, setCustomSubmissionName] = useState("");
-  const [customSubmissionPositionId, setCustomSubmissionPositionId] = useState("");
-
-  // Audio recording state
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [audioStatus, setAudioStatus] = useState<
-    "idle" | "uploading" | "success" | "error"
-  >("idle");
-  const [audioMessage, setAudioMessage] = useState("");
-  const [audioResult, setAudioResult] = useState<{
-    transcriptId: string;
-    extractionId: string;
-  } | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const recordingChunksRef = useRef<Blob[]>([]);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const [audioLevels, setAudioLevels] = useState<number[]>([0, 0, 0, 0, 0]);
+  const existingSessionRef = useRef<Session | null>(null);
+  const hydratedRef = useRef<string | null>(null);
 
   useEffect(() => {
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      mediaRecorderRef.current?.stop();
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-      audioContextRef.current?.close();
-    };
-  }, []);
-
-  // Load an existing session when ?edit=<id> is present. Runs once per id so
-  // the form isn't overwritten when sessions reload after saves.
-  const loadedEditIdRef = useRef<string | null>(null);
-
-  // Transcript/extraction state
-  const [transcriptText, setTranscriptText] = useState("");
-  const [transcriptStatus, setTranscriptStatus] = useState<
-    "idle" | "loading" | "error"
-  >("idle");
-  const [transcriptMessage, setTranscriptMessage] = useState("");
-  const [debugTranscriptInput, setDebugTranscriptInput] = useState("");
-  const [debugStatus, setDebugStatus] = useState<
-    "idle" | "running" | "success" | "error"
-  >("idle");
-  const [debugMessage, setDebugMessage] = useState("");
-  const [matchedExtraction, setMatchedExtraction] = useState<MatchedExtraction | null>(null);
-  const [rawExtraction, setRawExtraction] = useState<ExtractionPayload | null>(null);
-  const [extractionLoading, setExtractionLoading] = useState(false);
-  const [createUnmatchedItem, setCreateUnmatchedItem] = useState<UnmatchedItem | null>(null);
-  const [showExtractionDebug, setShowExtractionDebug] = useState(false);
-
-  // Form state
-  const [saved, setSaved] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  useEffect(() => {
-    if (!editSessionId || loadedEditIdRef.current === editSessionId) {
+    if (!editSessionId) {
+      hydratedRef.current = null;
+      existingSessionRef.current = null;
       return;
     }
-    const existing = sessions.find((s) => s.id === editSessionId);
+    if (hydratedRef.current === editSessionId) {
+      return;
+    }
+    const existing = getSessionById(editSessionId);
     if (!existing) {
       return;
     }
-    loadedEditIdRef.current = editSessionId;
-    setEditingSessionId(editSessionId);
-    // The user clicked "Edit" on the session detail page — drop them
-    // straight into edit mode. Post-save view mode is set separately in
-    // handleSubmit so the saved state is still read-only afterwards.
-    setViewMode("edit");
-    setDate(existing.date);
-    const matchedType = sessionTypes.find((t) => t === existing.sessionType);
-    if (matchedType) setSessionType(matchedType);
-    setGiOrNogi(existing.giOrNogi);
-    setDurationMinutes(existing.durationMinutes ?? "");
-    setNotes(existing.notes);
-    setInsights(existing.insights.join(", "));
-    setGoalsForNext(existing.goalsForNext.join(", "));
-    setNotesOpen(
-      Boolean(
-        existing.notes ||
-          existing.insights.length > 0 ||
-          existing.goalsForNext.length > 0,
-      ),
+    hydratedRef.current = editSessionId;
+    existingSessionRef.current = existing;
+
+    const classMatch = CLASS_TYPES.findIndex(
+      (c) =>
+        c.sessionType === existing.sessionType &&
+        c.giOrNogi === existing.giOrNogi,
     );
-    const drafts: DraftTechnique[] = [];
+
+    const rebuiltMoves: MoveDraft[] = [];
     for (const t of existing.techniques) {
-      drafts.push({
-        id: createId(),
-        positionId: t.positionId,
-        techniqueId: t.techniqueId,
-        keyDetails: t.keyDetails,
-        notes: t.notes,
-        expanded: t.keyDetails.length > 0 || Boolean(t.notes),
-        notesExpanded: Boolean(t.notes),
+      const pos = t.positionId
+        ? taxIndex.positionsById.get(t.positionId)
+        : null;
+      const tech = taxIndex.techniquesById.get(t.techniqueId);
+      rebuiltMoves.push({
+        key: t.id || createId(),
+        posId: t.positionId,
+        posName: pos?.name ?? "",
+        techId: t.techniqueId,
+        techName: tech?.name ?? "",
+        note: t.notes ?? "",
       });
     }
-    for (const p of existing.positionNotes) {
-      drafts.push({
-        id: createId(),
-        positionId: p.positionId,
-        techniqueId: null,
-        keyDetails: p.keyDetails,
-        notes: p.notes,
-        expanded: p.keyDetails.length > 0 || Boolean(p.notes),
-        notesExpanded: Boolean(p.notes),
+    for (const n of existing.positionNotes) {
+      const pos = taxIndex.positionsById.get(n.positionId);
+      rebuiltMoves.push({
+        key: n.id || createId(),
+        posId: n.positionId,
+        posName: pos?.name ?? "",
+        techId: null,
+        techName: "",
+        note: n.notes ?? "",
       });
     }
-    setTechniqueDrafts(drafts.length > 0 ? drafts : [createDraftTechnique()]);
-    const rounds: DraftRound[] = existing.sparringRounds.map((r) => ({
-      id: r.id,
+    if (rebuiltMoves.length === 0) {
+      rebuiltMoves.push(emptyMove());
+    }
+
+    const rebuiltRounds: RoundDraft[] = existing.sparringRounds.map((r) => ({
+      key: r.id || createId(),
       partnerName: r.partnerName ?? "",
-      partnerBelt: r.partnerBelt,
-      submissionsFor: r.submissionsFor,
-      submissionsAgainst: r.submissionsAgainst,
-      submissionsForCount: r.submissionsForCount,
-      submissionsAgainstCount: r.submissionsAgainstCount,
-      dominantPositions: r.dominantPositions,
-      stuckPositions: r.stuckPositions,
-      notes: r.notes,
-      notesExpanded: Boolean(r.notes),
+      belt: (r.partnerBelt ?? "white") as BeltLevel,
+      subsFor: r.submissionsForCount,
+      subsAgainst: r.submissionsAgainstCount,
     }));
-    setRoundDrafts(rounds.length > 0 ? rounds : [createDraftRound()]);
-    setShowTechniques(true);
-    setShowSparring(true);
-  }, [editSessionId, sessions]);
 
-  // Computed values
-  const recentPositionIds = useMemo(() => {
-    return getRecentIds(
-      sessions.flatMap((session) => [
-        ...session.techniques,
-        ...session.positionNotes,
-      ]),
-      (entry) => entry.positionId,
-      5,
-    );
-  }, [sessions]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrating drafts from async-loaded session data; the session arrives after mount via Supabase.
+    setClassIdx(classMatch >= 0 ? classMatch : 0);
+    setMoves(rebuiltMoves);
+    setRounds(rebuiltRounds);
+  }, [editSessionId, getSessionById, taxIndex]);
 
-  const recentTechniqueIds = useMemo(() => {
-    return getRecentIds(
-      sessions.flatMap((session) => session.techniques),
-      (technique) => technique.techniqueId,
-      5,
-    );
-  }, [sessions]);
+  const entryNumber = useMemo(() => {
+    if (editSessionId) {
+      const idx = sessions.findIndex((s) => s.id === editSessionId);
+      if (idx >= 0) {
+        return String(sessions.length - idx).padStart(4, "0");
+      }
+    }
+    return String(sessions.length + 1).padStart(4, "0");
+  }, [sessions, editSessionId]);
 
-  const submissionTechniques = useMemo(
-    () => index.techniques.filter((technique) => technique.category === "submission"),
-    [index.techniques],
+  const updateMove = useCallback(
+    (key: string, patch: Partial<MoveDraft>) => {
+      setMoves((prev) =>
+        prev.map((m) => (m.key === key ? { ...m, ...patch } : m)),
+      );
+    },
+    [],
   );
 
-  const submissionSearchIndex = useMemo(() => {
-    return new Fuse(submissionTechniques, {
-      keys: ["name", "aliases"],
-      threshold: 0.3,
-      includeScore: true,
-    });
-  }, [submissionTechniques]);
+  const addMove = () => setMoves((prev) => [...prev, emptyMove()]);
 
-  const recentSubmissionIds = useMemo(() => {
-    return getRecentIds(
-      sessions.flatMap((session) =>
-        session.sparringRounds.flatMap((round) => [
-          ...round.submissionsFor,
-          ...round.submissionsAgainst,
-        ]),
+  const cycleBelt = (key: string) => {
+    setRounds((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r;
+        const idx = BELT_ORDER.indexOf(r.belt);
+        const next = BELT_ORDER[(idx + 1) % BELT_ORDER.length];
+        return { ...r, belt: next };
+      }),
+    );
+  };
+
+  const bumpRound = (key: string, field: "subsFor" | "subsAgainst", delta: number) => {
+    setRounds((prev) =>
+      prev.map((r) =>
+        r.key === key
+          ? { ...r, [field]: Math.max(0, r[field] + delta) }
+          : r,
       ),
-      (submission) => submission.techniqueId,
-      5,
     );
-  }, [sessions]);
+  };
 
-  const commonSubmissions = useMemo(() => {
-    const list: Technique[] = [];
-    for (const id of commonSubmissionIds) {
-      const technique = index.techniquesById.get(id);
-      if (technique) {
-        list.push(technique);
-      }
-    }
-    return list;
-  }, [index.techniquesById]);
+  const updateRound = (key: string, patch: Partial<RoundDraft>) => {
+    setRounds((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, ...patch } : r)),
+    );
+  };
 
-  const recentSubmissions = useMemo(() => {
-    const list: Technique[] = [];
-    for (const id of recentSubmissionIds) {
-      const technique = index.techniquesById.get(id);
-      if (technique) {
-        list.push(technique);
-      }
-    }
-    return list;
-  }, [index.techniquesById, recentSubmissionIds]);
+  const addRound = () => setRounds((prev) => [...prev, emptyRound()]);
 
-  const submissionResults = useMemo(() => {
-    const query = submissionSearch.trim();
-    if (!query) {
-      return [];
-    }
-    return submissionSearchIndex.search(query).map((result) => result.item);
-  }, [submissionSearch, submissionSearchIndex]);
+  const targetForMove = (m: MoveDraft): "tech" | "pos" | null => {
+    if (m.techId && m.techName) return "tech";
+    if (m.posId && m.posName) return "pos";
+    return null;
+  };
 
-  const submissionList = useMemo(() => {
-    return [...submissionTechniques].sort((a, b) => a.name.localeCompare(b.name));
-  }, [submissionTechniques]);
+  const totalSubs = rounds.reduce((a, r) => a + r.subsFor, 0);
+  const totalSubbed = rounds.reduce((a, r) => a + r.subsAgainst, 0);
+  const totalRounds = rounds.length;
+  const noteCount = moves.filter((m) => m.note.trim()).length;
+  const loggedCount = moves.filter(
+    (m) => (m.posId && m.posName) || (m.techId && m.techName),
+  ).length;
 
-  // Handlers
-  const openTaxonomyCard = useCallback(
-    (type: "position" | "technique", id: string) => {
-      setTaxonomyCard({ type, id });
-    },
-    [],
+  const focusedMove = useMemo(
+    () =>
+      focusedCell
+        ? moves.find((m) => m.key === focusedCell.moveKey) ?? null
+        : null,
+    [focusedCell, moves],
   );
 
-  const updateTechnique = useCallback(
-    (id: string, update: Partial<DraftTechnique>) => {
-      setTechniqueDrafts((prev) =>
-        prev.map((technique) =>
-          technique.id === id
-            ? { ...technique, ...update, fromExtraction: false }
-            : technique,
+  const positionSuggestions = useMemo(() => {
+    if (!focusedCell || focusedCell.field !== "pos" || !focusedMove) return [];
+    return suggestPositions(taxPositions, focusedMove.posName, 6);
+  }, [focusedCell, focusedMove, taxPositions]);
+
+  const techniqueSuggestions = useMemo(() => {
+    if (!focusedCell || focusedCell.field !== "tech" || !focusedMove) return [];
+    return suggestTechniques(taxIndex, focusedMove.posId, focusedMove.techName, 6);
+  }, [focusedCell, focusedMove, taxIndex]);
+
+  const positionQuery = focusedCell?.field === "pos" ? focusedMove?.posName.trim() ?? "" : "";
+  const techniqueQuery = focusedCell?.field === "tech" ? focusedMove?.techName.trim() ?? "" : "";
+  const positionHasExact = positionSuggestions.some(
+    (p) => p.name.toLowerCase() === positionQuery.toLowerCase(),
+  );
+  const techniqueHasExact = techniqueSuggestions.some(
+    (t) => t.name.toLowerCase() === techniqueQuery.toLowerCase(),
+  );
+  const showAddPosition = positionQuery.length >= 2 && !positionHasExact;
+  const showAddTechnique =
+    techniqueQuery.length >= 2 &&
+    !techniqueHasExact &&
+    Boolean(focusedMove?.posId);
+
+  const filteredPartnerSuggestions = useMemo(() => {
+    if (!focusedPartnerKey) return [];
+    const round = rounds.find((r) => r.key === focusedPartnerKey);
+    if (!round) return [];
+    const q = round.partnerName.trim().toLowerCase();
+    const existingNames = new Set(
+      rounds
+        .filter((r) => r.key !== focusedPartnerKey)
+        .map((r) => r.partnerName.trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const candidates = partnerSuggestions.filter(
+      (name) => !existingNames.has(name.toLowerCase()),
+    );
+    if (!q) return candidates.slice(0, 6);
+    return candidates
+      .filter((name) => name.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [focusedPartnerKey, rounds, partnerSuggestions]);
+
+  const handleAddCustomPosition = useCallback(
+    (moveKey: string, name: string) => {
+      const pos = addCustomPosition({ name, parentId: null });
+      if (!pos) return;
+      setMoves((prev) =>
+        prev.map((m) =>
+          m.key === moveKey
+            ? { ...m, posId: pos.id, posName: pos.name }
+            : m,
         ),
       );
+      setFocusedCell({ moveKey, field: "tech" });
     },
-    [],
+    [addCustomPosition],
   );
 
-  const addTechnique = useCallback(() => {
-    setTechniqueDrafts((prev) => [...prev, createDraftTechnique()]);
-  }, []);
-
-  const removeTechnique = useCallback((id: string) => {
-    setTechniqueDrafts((prev) => prev.filter((technique) => technique.id !== id));
-  }, []);
-
-  const updateRound = useCallback(
-    (id: string, update: Partial<DraftRound>) => {
-      setRoundDrafts((prev) =>
-        prev.map((round) =>
-          round.id === id
-            ? { ...round, ...update, fromExtraction: false }
-            : round,
+  const handleAddCustomTechnique = useCallback(
+    (moveKey: string, name: string, positionId: string) => {
+      const tech = addCustomTechnique({
+        name,
+        category: "submission",
+        positionFromId: positionId,
+      });
+      if (!tech) return;
+      setMoves((prev) =>
+        prev.map((m) =>
+          m.key === moveKey
+            ? { ...m, techId: tech.id, techName: tech.name }
+            : m,
         ),
       );
+      setFocusedCell(null);
     },
-    [],
+    [addCustomTechnique],
   );
 
-  const addRound = useCallback(() => {
-    setRoundDrafts((prev) => [...prev, createDraftRound()]);
-  }, []);
-
-  const removeRound = useCallback(
-    (id: string) => {
-      setRoundDrafts((prev) => {
-        const round = prev.find((item) => item.id === id);
-        if (!round) {
-          return prev;
-        }
-
-        const hasData =
-          round.partnerName.trim() ||
-          round.partnerBelt ||
-          round.submissionsFor.length > 0 ||
-          round.submissionsAgainst.length > 0 ||
-          round.dominantPositions.length > 0 ||
-          round.stuckPositions.length > 0 ||
-          round.notes.trim();
-
-        if (hasData && !window.confirm("Remove this round?")) {
-          return prev;
-        }
-
-        return prev.filter((item) => item.id !== id);
-      });
-    },
-    [],
-  );
-
-  const toggleRoundPosition = useCallback(
-    (roundId: string, type: "dominant" | "stuck", positionId: string) => {
-      setRoundDrafts((prev) =>
-        prev.map((round) => {
-          if (round.id !== roundId) {
-            return round;
-          }
-          const key = type === "dominant" ? "dominantPositions" : "stuckPositions";
-          const list = round[key];
-          const next = list.includes(positionId)
-            ? list.filter((item) => item !== positionId)
-            : [...list, positionId];
-          return {
-            ...round,
-            [key]: next,
-          };
-        }),
-      );
-    },
-    [],
-  );
-
-  const openSubmissionPicker = useCallback(
-    (roundId: string, side: "for" | "against") => {
-      setSubmissionPicker({ roundId, side });
-      setSubmissionSearch("");
-    },
-    [],
-  );
-
-  const incrementSubmissionCount = useCallback(
-    (roundId: string, side: "for" | "against") => {
-      setRoundDrafts((prev) =>
-        prev.map((round) => {
-          if (round.id !== roundId) {
-            return round;
-          }
-          const countKey =
-            side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
-          return {
-            ...round,
-            [countKey]: round[countKey] + 1,
-          };
-        }),
-      );
-    },
-    [],
-  );
-
-  const decrementSubmissionCount = useCallback(
-    (roundId: string, side: "for" | "against") => {
-      setRoundDrafts((prev) =>
-        prev.map((round) => {
-          if (round.id !== roundId) {
-            return round;
-          }
-          const countKey =
-            side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
-          const listKey = side === "for" ? "submissionsFor" : "submissionsAgainst";
-          if (round[countKey] === 0) {
-            return round;
-          }
-
-          const nextCount = round[countKey] - 1;
-          if (nextCount < round[listKey].length) {
-            const message =
-              round[listKey].length === 1
-                ? "Clear the logged submission?"
-                : "Reduce the count and remove a submission detail?";
-            if (!window.confirm(message)) {
-              return round;
-            }
-            return {
-              ...round,
-              [countKey]: nextCount,
-              [listKey]: round[listKey].slice(0, nextCount),
-            };
-          }
-
-          return {
-            ...round,
-            [countKey]: nextCount,
-          };
-        }),
-      );
-    },
-    [],
-  );
-
-  const removeSubmission = useCallback(
-    (roundId: string, side: "for" | "against", id: string) => {
-      setRoundDrafts((prev) =>
-        prev.map((round) => {
-          if (round.id !== roundId) {
-            return round;
-          }
-          const listKey = side === "for" ? "submissionsFor" : "submissionsAgainst";
-          const countKey =
-            side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
-          const next = round[listKey].filter((item) => item.id !== id);
-          const nextCount =
-            round[countKey] === round[listKey].length
-              ? Math.max(0, round[countKey] - 1)
-              : round[countKey];
-          return {
-            ...round,
-            [listKey]: next,
-            [countKey]: Math.max(nextCount, next.length),
-          };
-        }),
-      );
-    },
-    [],
-  );
-
-  function handleSubmissionSelect(
-    roundId: string,
-    side: "for" | "against",
-    techniqueId: string,
-  ) {
-    const ambiguousPositions = ambiguousSubmissions[techniqueId];
-    if (ambiguousPositions?.length) {
-      // Sub-step of the submission picker — keep the picker modal open and swap
-      // its content to the position disambiguation view.
-      setAmbiguousSubmission({ roundId, side, techniqueId });
-      setSubmissionSearch("");
-      return;
-    }
-
-    const submission: RoundSubmission = {
-      id: createId(),
-      techniqueId,
-      positionId: null,
-    };
-
-    setRoundDrafts((prev) =>
-      prev.map((round) => {
-        if (round.id !== roundId) {
-          return round;
-        }
-        const listKey = side === "for" ? "submissionsFor" : "submissionsAgainst";
-        const countKey =
-          side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
-        const nextList = [...round[listKey], submission];
-        return {
-          ...round,
-          [listKey]: nextList,
-          [countKey]: Math.max(round[countKey], nextList.length),
-        };
-      }),
-    );
-    setSubmissionPicker(null);
-    setSubmissionSearch("");
-  }
-
-  function handleAmbiguousPositionSelect(positionId: string | null) {
-    if (!ambiguousSubmission) {
-      return;
-    }
-    const { roundId, side, techniqueId } = ambiguousSubmission;
-    const submission: RoundSubmission = {
-      id: createId(),
-      techniqueId,
-      positionId,
-    };
-
-    setRoundDrafts((prev) =>
-      prev.map((round) => {
-        if (round.id !== roundId) {
-          return round;
-        }
-        const listKey = side === "for" ? "submissionsFor" : "submissionsAgainst";
-        const countKey =
-          side === "for" ? "submissionsForCount" : "submissionsAgainstCount";
-        const nextList = [...round[listKey], submission];
-        return {
-          ...round,
-          [listKey]: nextList,
-          [countKey]: Math.max(round[countKey], nextList.length),
-        };
-      }),
-    );
-    setAmbiguousSubmission(null);
-    setSubmissionPicker(null);
-    setSubmissionSearch("");
-  }
-
-  async function handleAudioUpload() {
-    if (!audioFile) {
-      setAudioStatus("error");
-      setAudioMessage("Choose an audio file to upload.");
-      return;
-    }
-
+  async function handleSave() {
     if (!user) {
-      setAudioStatus("error");
-      setAudioMessage("You need to be signed in to upload audio.");
+      setSaveError("You need to be signed in.");
+      setSaving("error");
       return;
     }
-
-    setAudioStatus("uploading");
-    setAudioMessage("");
-    setAudioResult(null);
-
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) {
-      setAudioStatus("error");
-      setAudioMessage("Could not read your auth session. Try again.");
-      return;
-    }
-
-    const form = new FormData();
-    form.append("file", audioFile);
-    form.append("source", "audio_upload");
-
-    try {
-      const response = await fetch("/api/transcripts", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: form,
-      });
-
-      const contentType = response.headers.get("content-type") ?? "";
-      let result:
-        | { id: string; extractionId: string; status?: string }
-        | { error: string }
-        | null = null;
-
-      if (contentType.includes("application/json")) {
-        result = (await response.json()) as
-          | { id: string; extractionId: string; status?: string }
-          | { error: string };
-      } else {
-        const text = await response.text();
-        result = text ? { error: text } : null;
-      }
-
-      if (!response.ok || (result && "error" in result)) {
-        const rawMessage =
-          result && "error" in result ? result.error : "Upload failed. Try again.";
-        const safeMessage =
-          rawMessage.includes("<html") || rawMessage.includes("<!DOCTYPE")
-            ? "Upload failed. Check the server logs for details."
-            : rawMessage;
-        setAudioStatus("error");
-        setAudioMessage(safeMessage);
-        return;
-      }
-
-      if (!result || !("id" in result) || !result.id || !("extractionId" in result)) {
-        setAudioStatus("error");
-        setAudioMessage("Upload failed. Try again.");
-        return;
-      }
-
-      setAudioStatus("success");
-      setAudioMessage("Audio uploaded. Draft extraction is ready for review.");
-      setAudioResult({
-        transcriptId: result.id,
-        extractionId: result.extractionId,
-      });
-
-      fetchAndMatchExtraction(result.extractionId, token);
-      fetchTranscript(result.id, token);
-    } catch (error) {
-      setAudioStatus("error");
-      setAudioMessage(
-        error instanceof Error ? error.message : "Upload failed. Try again.",
-      );
-    }
-  }
-
-  async function startRecording() {
-    if (isRecording) {
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-      const recorder = new MediaRecorder(stream);
-      recordingChunksRef.current = [];
-
-      const audioContext = new AudioContext();
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 256;
-      const source = audioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
-
-      const dataArray = new Uint8Array(analyser.fftSize);
-      function updateLevels() {
-        if (!analyserRef.current) return;
-        analyserRef.current.getByteTimeDomainData(dataArray);
-        const segmentSize = Math.floor(dataArray.length / 5);
-        const levels = [0, 1, 2, 3, 4].map((i) => {
-          let sum = 0;
-          for (let j = 0; j < segmentSize; j++) {
-            const val = dataArray[i * segmentSize + j] - 128;
-            sum += Math.abs(val);
-          }
-          return Math.min(1, (sum / segmentSize / 128) * 4);
-        });
-        setAudioLevels(levels);
-        animationFrameRef.current = requestAnimationFrame(updateLevels);
-      }
-      updateLevels();
-
-      recorder.addEventListener("dataavailable", (event) => {
-        if (event.data.size > 0) {
-          recordingChunksRef.current.push(event.data);
-        }
-      });
-
-      recorder.addEventListener("stop", () => {
-        const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType });
-        recordingChunksRef.current = [];
-        const file = new File([blob], `recording-${Date.now()}.webm`, {
-          type: blob.type || "audio/webm",
-        });
-
-        if (recordingUrl) {
-          URL.revokeObjectURL(recordingUrl);
-        }
-
-        setRecordingUrl(URL.createObjectURL(blob));
-        setAudioFile(file);
-        setAudioStatus("idle");
-        setAudioMessage("");
-        setAudioResult(null);
-
-        if (mediaStreamRef.current) {
-          mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-          mediaStreamRef.current = null;
-        }
-      });
-
-      mediaRecorderRef.current = recorder;
-      recorder.start();
-      setIsRecording(true);
-    } catch (error) {
-      setAudioStatus("error");
-      setAudioMessage(
-        error instanceof Error ? error.message : "Microphone access failed.",
-      );
-    }
-  }
-
-  function stopRecording() {
-    if (!mediaRecorderRef.current) {
-      return;
-    }
-    mediaRecorderRef.current.stop();
-    mediaRecorderRef.current = null;
-    setIsRecording(false);
-
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    analyserRef.current = null;
-    setAudioLevels([0, 0, 0, 0, 0]);
-  }
-
-  async function fetchTranscript(transcriptId: string, token: string) {
-    setTranscriptStatus("loading");
-    setTranscriptMessage("");
-    try {
-      const response = await fetch(`/api/transcripts/${transcriptId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        setTranscriptStatus("error");
-        setTranscriptMessage("Unable to load transcript text.");
-        return;
-      }
-
-      const data = (await response.json()) as { rawText?: string };
-      setTranscriptText(data.rawText ?? "");
-      setTranscriptStatus("idle");
-    } catch (error) {
-      setTranscriptStatus("error");
-      setTranscriptMessage(
-        error instanceof Error ? error.message : "Unable to load transcript text.",
-      );
-    }
-  }
-
-  async function handleTranscriptTextExtraction() {
-    const text = debugTranscriptInput.trim();
-    if (!text) {
-      setDebugStatus("error");
-      setDebugMessage("Paste a transcript to test extraction.");
-      return;
-    }
-
-    if (!user) {
-      setDebugStatus("error");
-      setDebugMessage("You need to be signed in to run extraction.");
-      return;
-    }
-
-    setDebugStatus("running");
-    setDebugMessage("");
-    setRawExtraction(null);
-    setMatchedExtraction(null);
-    setTranscriptText("");
-
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) {
-      setDebugStatus("error");
-      setDebugMessage("Could not read your auth session. Try again.");
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/transcripts/text", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text }),
-      });
-
-      const contentType = response.headers.get("content-type") ?? "";
-      let result:
-        | { id: string; extractionId: string; status?: string }
-        | { error: string }
-        | null = null;
-
-      if (contentType.includes("application/json")) {
-        result = (await response.json()) as
-          | { id: string; extractionId: string; status?: string }
-          | { error: string };
-      } else {
-        const responseText = await response.text();
-        result = responseText ? { error: responseText } : null;
-      }
-
-      if (!response.ok || (result && "error" in result)) {
-        const rawMessage =
-          result && "error" in result ? result.error : "Extraction failed.";
-        setDebugStatus("error");
-        setDebugMessage(rawMessage);
-        return;
-      }
-
-      if (!result || !("id" in result) || !("extractionId" in result)) {
-        setDebugStatus("error");
-        setDebugMessage("Extraction failed.");
-        return;
-      }
-
-      setDebugStatus("success");
-      setDebugMessage("Draft extraction created.");
-      setAudioResult({
-        transcriptId: result.id,
-        extractionId: result.extractionId,
-      });
-      fetchAndMatchExtraction(result.extractionId, token);
-      fetchTranscript(result.id, token);
-    } catch (error) {
-      setDebugStatus("error");
-      setDebugMessage(
-        error instanceof Error ? error.message : "Extraction failed.",
-      );
-    }
-  }
-
-  async function fetchAndMatchExtraction(extractionId: string, token: string) {
-    setExtractionLoading(true);
-    try {
-      const response = await fetch(`/api/extractions/${extractionId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        return;
-      }
-
-      const data = (await response.json()) as {
-        extractedPayload: ExtractionPayload;
-      };
-
-      if (data.extractedPayload) {
-        setRawExtraction(data.extractedPayload);
-
-        const matched = matchExtraction(data.extractedPayload, index);
-        setMatchedExtraction(matched);
-
-        applyExtractionData(matched);
-      }
-    } catch {
-      // Silently fail
-    } finally {
-      setExtractionLoading(false);
-    }
-  }
-
-  function applyExtractionData(extraction: MatchedExtraction) {
-    const { session, sparringRounds } = extraction;
-
-    if (session.date) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(session.date)) {
-        setDate(session.date);
-      } else {
-        const parsed = new Date(session.date);
-        if (!isNaN(parsed.getTime())) {
-          const y = parsed.getFullYear();
-          const m = String(parsed.getMonth() + 1).padStart(2, "0");
-          const d = String(parsed.getDate()).padStart(2, "0");
-          setDate(`${y}-${m}-${d}`);
-        }
-      }
-    }
-    if (session.giOrNogi) {
-      setGiOrNogi(session.giOrNogi);
-    }
-    if (session.sessionType) {
-      const matchedType = sessionTypes.find(
-        (t) => t.toLowerCase().replace(/-/g, " ") === session.sessionType.toLowerCase(),
-      );
-      if (matchedType) {
-        setSessionType(matchedType);
-      }
-    }
-
-    if (session.techniques.length > 0 || session.positionNotes.length > 0) {
-      const newDrafts: DraftTechnique[] = [];
-
-      for (const tech of session.techniques) {
-        newDrafts.push({
-          id: createId(),
-          positionId: tech.positionMatch?.item.id ?? null,
-          techniqueId: tech.techniqueMatch?.item.id ?? null,
-          keyDetails: tech.keyDetails,
-          notes: tech.notes,
-          expanded: tech.keyDetails.length > 0 || Boolean(tech.notes),
-          notesExpanded: Boolean(tech.notes),
-          fromExtraction: true,
-        });
-      }
-
-      for (const note of session.positionNotes) {
-        newDrafts.push({
-          id: createId(),
-          positionId: note.positionMatch?.item.id ?? null,
-          techniqueId: null,
-          keyDetails: note.keyDetails,
-          notes: note.notes,
-          expanded: note.keyDetails.length > 0 || Boolean(note.notes),
-          notesExpanded: Boolean(note.notes),
-          fromExtraction: true,
-        });
-      }
-
-      if (newDrafts.length > 0) {
-        setTechniqueDrafts(newDrafts);
-        // Ensure techniques section is visible when extraction fills it
-        setShowTechniques(true);
-      }
-    }
-
-    if (sparringRounds.length > 0) {
-      const newRounds: DraftRound[] = sparringRounds.map((round) => {
-        const submissionsFor: RoundSubmission[] = round.submissionsFor
-          .filter((s) => s.techniqueMatch)
-          .map((s) => ({
-            id: createId(),
-            techniqueId: s.techniqueMatch!.item.id,
-            positionId: null,
-          }));
-
-        const submissionsAgainst: RoundSubmission[] = round.submissionsAgainst
-          .filter((s) => s.techniqueMatch)
-          .map((s) => ({
-            id: createId(),
-            techniqueId: s.techniqueMatch!.item.id,
-            positionId: null,
-          }));
-
-        let partnerBelt: BeltLevel | null = null;
-        const beltStr = round.partnerBelt.toLowerCase();
-        if (beltStr.includes("white")) partnerBelt = "white";
-        else if (beltStr.includes("blue")) partnerBelt = "blue";
-        else if (beltStr.includes("purple")) partnerBelt = "purple";
-        else if (beltStr.includes("brown")) partnerBelt = "brown";
-        else if (beltStr.includes("black")) partnerBelt = "black";
-
-        return {
-          id: createId(),
-          partnerName: round.partnerName,
-          partnerBelt,
-          submissionsFor,
-          submissionsAgainst,
-          submissionsForCount: Math.max(submissionsFor.length, round.submissionsFor.length),
-          submissionsAgainstCount: Math.max(submissionsAgainst.length, round.submissionsAgainst.length),
-          dominantPositions: [],
-          stuckPositions: [],
-          notes: round.notes,
-          notesExpanded: Boolean(round.notes),
-          fromExtraction: true,
-        };
-      });
-
-      setRoundDrafts(newRounds);
-      // Ensure sparring section is visible when extraction fills it
-      setShowSparring(true);
-    }
-  }
-
-  function applyExtraction() {
-    if (!matchedExtraction) {
-      return;
-    }
-    applyExtractionData(matchedExtraction);
-    setMatchedExtraction(null);
-  }
-
-  function dismissExtraction() {
-    setMatchedExtraction(null);
-    setRawExtraction(null);
-  }
-
-  function handleCreateUnmatched(item: UnmatchedItem) {
-    setCreateUnmatchedItem(item);
-  }
-
-  function handleUnmatchedCreated() {
-    if (matchedExtraction && audioResult) {
-      supabase.auth.getSession().then(({ data }) => {
-        const token = data.session?.access_token;
-        if (token) {
-          fetchAndMatchExtraction(audioResult.extractionId, token);
-        }
-      });
-    }
-    setCreateUnmatchedItem(null);
-  }
-
-  function openCustomSubmission(roundId: string, side: "for" | "against") {
-    // Sub-step of the submission picker — leave submissionPicker set so the
-    // same modal stays open, just with the custom-submission form.
-    setCustomSubmissionTarget({ roundId, side });
-    setCustomSubmissionName("");
-    setCustomSubmissionPositionId("");
-    setSubmissionSearch("");
-  }
-
-  function handleCustomSubmissionSave() {
-    if (!customSubmissionTarget) {
-      return;
-    }
-
-    const trimmedName = customSubmissionName.trim();
-    if (!trimmedName || !customSubmissionPositionId) {
-      return;
-    }
-
-    const created = addCustomTechnique({
-      name: trimmedName,
-      category: "submission",
-      positionFromId: customSubmissionPositionId,
-      positionToId: null,
-    });
-
-    if (!created) {
-      return;
-    }
-
-    handleSubmissionSelect(
-      customSubmissionTarget.roundId,
-      customSubmissionTarget.side,
-      created.id,
-    );
-    setCustomSubmissionTarget(null);
-  }
-
-  const activePositionRound = positionPickerTarget
-    ? roundDrafts.find((round) => round.id === positionPickerTarget.roundId) ?? null
-    : null;
-  const activePositionOptions =
-    positionPickerTarget?.type === "dominant"
-      ? sparringDominantPositions
-      : sparringStuckPositions;
-  const activePositions =
-    positionPickerTarget && activePositionRound
-      ? positionPickerTarget.type === "dominant"
-        ? activePositionRound.dominantPositions
-        : activePositionRound.stuckPositions
-      : [];
-  const positionQuery = positionSearch.trim().toLowerCase();
-  const filteredPositionOptions = positionQuery
-    ? activePositionOptions.filter((option) =>
-        option.label.toLowerCase().includes(positionQuery),
-      )
-    : activePositionOptions;
-
-  const ambiguousOptions = ambiguousSubmission
-    ? ambiguousSubmissions[ambiguousSubmission.techniqueId] ?? []
-    : [];
-  const ambiguousTechnique = ambiguousSubmission
-    ? index.techniquesById.get(ambiguousSubmission.techniqueId) ?? null
-    : null;
-
-  function resetForm() {
-    setDate(todayLocalISO());
-    setSessionType(sessionTypes[0]);
-    setGiOrNogi("gi");
-    setDurationMinutes("");
-    setNotes("");
-    setNotesOpen(false);
-    setInsights("");
-    setGoalsForNext("");
-    setTechniqueDrafts([createDraftTechnique()]);
-    setRoundDrafts([createDraftRound()]);
-    setBeltPickerRoundId(null);
-    setSubmissionPicker(null);
-    setSubmissionSearch("");
-    setAmbiguousSubmission(null);
-    setPositionPickerTarget(null);
-    setPositionSearch("");
-    setCustomSubmissionTarget(null);
-    setCustomSubmissionName("");
-    setCustomSubmissionPositionId("");
-    setEditingSessionId(null);
-    loadedEditIdRef.current = null;
-    setViewMode("new");
-  }
-
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setFormError("");
-    if (!user) {
-      setFormError("You must be signed in to save a session.");
-      return;
-    }
-
-    const filledDrafts = techniqueDrafts.filter(
-      (draft) =>
-        draft.positionId ||
-        draft.techniqueId ||
-        draft.notes.trim() ||
-        draft.keyDetails.length > 0,
-    );
-
-    const now = new Date().toISOString();
-    const isUpdate = Boolean(editingSessionId);
-    const existing = editingSessionId
-      ? sessions.find((s) => s.id === editingSessionId)
-      : null;
+    setSaving("saving");
+    setSaveError("");
+
+    const cls = CLASS_TYPES[classIdx];
+    const nowIso = new Date().toISOString();
+    const existing = existingSessionRef.current;
     const sessionId = existing?.id ?? createId();
 
-    // Techniques can now be logged with or without a position
-    const techniquesDrilled: SessionTechnique[] = filledDrafts
-      .filter((draft) => draft.techniqueId)
-      .map((draft) => ({
-        id: createId(),
-        sessionId,
-        positionId: draft.positionId,
-        techniqueId: draft.techniqueId as string,
-        keyDetails: draft.keyDetails,
-        notes: draft.notes.trim(),
-      }));
-
-    const positionNotes: SessionPositionNote[] = filledDrafts
-      .filter(
-        (draft) =>
-          draft.positionId &&
-          !draft.techniqueId &&
-          (draft.notes.trim() || draft.keyDetails.length > 0),
-      )
-      .map((draft) => ({
-        id: createId(),
-        sessionId,
-        positionId: draft.positionId as string,
-        keyDetails: draft.keyDetails,
-        notes: draft.notes.trim(),
-      }));
-
-    const sparringRounds: SparringRound[] = roundDrafts
-      .filter(
-        (round) =>
-          round.partnerName.trim() ||
-          round.submissionsForCount > 0 ||
-          round.submissionsAgainstCount > 0 ||
-          round.dominantPositions.length > 0 ||
-          round.stuckPositions.length > 0 ||
-          round.notes.trim(),
-      )
-      .map((round) => ({
-        id: round.id,
-        partnerName: round.partnerName.trim() || null,
-        partnerBelt: round.partnerBelt,
-        submissionsFor: round.submissionsFor,
-        submissionsAgainst: round.submissionsAgainst,
-        submissionsForCount: round.submissionsForCount,
-        submissionsAgainstCount: round.submissionsAgainstCount,
-        dominantPositions: round.dominantPositions,
-        stuckPositions: round.stuckPositions,
-        notes: round.notes.trim(),
-      }));
-
-    const trimmedNotes = notes.trim();
-    const insightsList = insights
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const goalsList = goalsForNext
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    const hasContent =
-      techniquesDrilled.length > 0 ||
-      positionNotes.length > 0 ||
-      sparringRounds.length > 0 ||
-      trimmedNotes.length > 0 ||
-      insightsList.length > 0 ||
-      goalsList.length > 0;
-
-    if (!hasContent) {
-      setFormError(
-        "Add at least one technique, sparring round, or note before saving.",
-      );
-      return;
+    const techniques: SessionTechnique[] = [];
+    const positionNotes: SessionPositionNote[] = [];
+    for (const m of moves) {
+      const hasPos = Boolean(m.posId);
+      const hasTech = Boolean(m.techId);
+      if (hasPos && hasTech) {
+        techniques.push({
+          id: m.key,
+          sessionId,
+          positionId: m.posId,
+          techniqueId: m.techId!,
+          keyDetails: [],
+          notes: m.note.trim(),
+        });
+      } else if (hasPos && !hasTech) {
+        positionNotes.push({
+          id: m.key,
+          sessionId,
+          positionId: m.posId!,
+          keyDetails: [],
+          notes: m.note.trim(),
+        });
+      }
     }
+
+    const sparringRounds: SparringRound[] = rounds.map((r) => ({
+      id: r.key,
+      partnerName: r.partnerName.trim() || null,
+      partnerBelt: r.belt,
+      submissionsFor: [],
+      submissionsAgainst: [],
+      submissionsForCount: r.subsFor,
+      submissionsAgainstCount: r.subsAgainst,
+      dominantPositions: [],
+      stuckPositions: [],
+      notes: "",
+    }));
 
     const session: Session = {
       id: sessionId,
       userId: user.id,
       date,
-      sessionType,
-      giOrNogi,
-      durationMinutes: durationMinutes === "" ? null : durationMinutes,
-      energyLevel: null,
-      techniques: techniquesDrilled,
+      sessionType: cls.sessionType,
+      giOrNogi: cls.giOrNogi,
+      durationMinutes: existing?.durationMinutes ?? null,
+      energyLevel: existing?.energyLevel ?? null,
+      techniques,
       positionNotes,
       sparringRounds,
-      notes: trimmedNotes,
-      insights: insightsList,
-      goalsForNext: goalsList,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
+      notes: existing?.notes ?? "",
+      insights: existing?.insights ?? [],
+      goalsForNext: existing?.goalsForNext ?? [],
+      createdAt: existing?.createdAt ?? nowIso,
+      updatedAt: nowIso,
     };
 
-    const result = isUpdate
+    const result = existing
       ? await updateSession(session)
       : await addSession(session);
 
     if (!result.ok) {
-      setFormError(result.error || "Could not save. Please try again.");
+      setSaving("error");
+      setSaveError(result.error);
       return;
     }
 
-    recordTechniqueProgress(
-      techniquesDrilled.map((item) => item.techniqueId),
-      now,
-    );
-    recordTagUsage(
-      [...techniquesDrilled, ...positionNotes].flatMap((item) => item.keyDetails),
-      now,
-    );
-    recordPartnerNames(
-      sparringRounds
-        .map((round) => round.partnerName)
-        .filter((name): name is string => Boolean(name)),
-      now,
-    );
+    const partnerNames = rounds
+      .map((r) => r.partnerName.trim())
+      .filter(Boolean);
+    if (partnerNames.length > 0) {
+      recordPartnerNames(partnerNames, nowIso);
+    }
 
-    setSavedSummary({
-      date,
-      techniques: techniquesDrilled.length,
-      rounds: sparringRounds.length,
-      subsFor: sparringRounds.reduce((sum, r) => sum + r.submissionsForCount, 0),
-      subsAgainst: sparringRounds.reduce((sum, r) => sum + r.submissionsAgainstCount, 0),
-      sessionId,
-      isUpdate,
-    });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-
-    // After save, switch to read-only view so the user can't edit by accident.
-    // They must explicitly click Edit session to make further changes.
-    setEditingSessionId(sessionId);
-    loadedEditIdRef.current = sessionId;
-    setViewMode("view");
+    router.push("/sessions");
   }
 
+  async function processVoicePaste() {
+    if (!user || !voiceText.trim()) return;
+    setVoiceBusy(true);
+    setVoiceError("");
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      setVoiceBusy(false);
+      setVoiceError("Could not read your auth session.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/transcripts/text", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text: voiceText }),
+      });
+      if (!res.ok) {
+        setVoiceBusy(false);
+        setVoiceError(`Transcript failed (${res.status}).`);
+        return;
+      }
+      const json = (await res.json()) as { extractionId?: string };
+      if (!json.extractionId) {
+        setVoiceBusy(false);
+        setVoiceError("Extraction did not return an id.");
+        return;
+      }
+      const extractionRes = await fetch(
+        `/api/extractions/${json.extractionId}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!extractionRes.ok) {
+        setVoiceBusy(false);
+        setVoiceError(`Extraction fetch failed (${extractionRes.status}).`);
+        return;
+      }
+      const payload = (await extractionRes.json()) as {
+        extractedPayload?: ExtractionPayload;
+      };
+      if (!payload.extractedPayload) {
+        setVoiceBusy(false);
+        setVoiceError("Extraction returned no data.");
+        return;
+      }
+      const matched = matchExtraction(payload.extractedPayload, taxIndex);
+      applyExtractionToDrafts(matched);
+      setVoiceBusy(false);
+      setVoiceOpen(false);
+      setVoiceText("");
+    } catch (err) {
+      setVoiceBusy(false);
+      setVoiceError(err instanceof Error ? err.message : "Failed.");
+    }
+  }
+
+  function applyExtractionToDrafts(matched: MatchedExtraction) {
+    const newMoves: MoveDraft[] = [];
+    for (const t of matched.session.techniques) {
+      const tm = t.techniqueMatch;
+      const pm = t.positionMatch;
+      if (!tm) continue;
+      const note = t.notes?.trim() || t.keyDetails.join(", ");
+      newMoves.push({
+        key: createId(),
+        posId: pm?.item.id ?? null,
+        posName: pm?.item.name ?? t.positionName ?? "",
+        techId: tm.item.id,
+        techName: tm.item.name,
+        note,
+      });
+    }
+    for (const p of matched.session.positionNotes) {
+      const pm = p.positionMatch;
+      if (!pm) continue;
+      const note = p.notes?.trim() || p.keyDetails.join(", ");
+      newMoves.push({
+        key: createId(),
+        posId: pm.item.id,
+        posName: pm.item.name,
+        techId: null,
+        techName: "",
+        note,
+      });
+    }
+    if (newMoves.length > 0) {
+      setMoves((prev) => {
+        const base = prev.filter(
+          (m) => m.posName.trim() || m.techName.trim() || m.note.trim(),
+        );
+        return [...base, ...newMoves];
+      });
+    }
+
+    const newRounds: RoundDraft[] = [];
+    for (const r of matched.sparringRounds) {
+      const belt: BeltLevel = BELT_ORDER.includes(r.partnerBelt as BeltLevel)
+        ? (r.partnerBelt as BeltLevel)
+        : "white";
+      newRounds.push({
+        key: createId(),
+        partnerName: r.partnerName,
+        belt,
+        subsFor: r.submissionsFor.length,
+        subsAgainst: r.submissionsAgainst.length,
+      });
+    }
+    if (newRounds.length > 0) {
+      setRounds((prev) => [...prev, ...newRounds]);
+    }
+  }
+
+  const canSave = saving !== "saving" && loggedCount > 0;
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
-            {viewMode === "view"
-              ? "Saved Session"
-              : viewMode === "edit"
-                ? "Editing Session"
-                : "Session Log"}
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {viewMode === "view"
-              ? "Session detail"
-              : viewMode === "edit"
-                ? "Edit session"
-                : "Log a session"}
-          </h1>
-        </div>
-        <Link
-          href="/sessions"
-          className="rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
-        >
-          View sessions
-        </Link>
-      </header>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Voice Input Section - hidden when viewing a saved session */}
-        {!readOnly ? (
-        <Card as="section" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+    <>
+      <style>{css}</style>
+      <div className="v1-root">
+        <div className="v1-shell">
+          <div className="v1-hdr">
             <div>
-              <h2 className="text-lg font-semibold">Quick capture</h2>
-              <p className="text-sm text-zinc-500">
-                Record a voice note or paste text to auto-fill your session.
-              </p>
+              <h1>Training Ledger</h1>
+              <div className="no mono">Entry № {entryNumber}</div>
             </div>
-            {audioStatus === "uploading" ? (
-              <Tag variant="status">Uploading...</Tag>
-            ) : null}
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button
-              variant={isRecording ? "danger" : "secondary"}
-              onClick={isRecording ? stopRecording : startRecording}
-            >
-              {isRecording ? "Stop recording" : "Record voice note"}
-            </Button>
-            {isRecording && (
-              <div className="flex items-center gap-1 px-2">
-                {audioLevels.map((level, i) => (
-                  <div
-                    key={i}
-                    className="w-1 rounded-full bg-red-400 transition-all duration-75"
-                    style={{ height: `${8 + level * 16}px` }}
-                  />
-                ))}
-              </div>
-            )}
-            <Button variant="ghost" onClick={() => setShowExtractionDebug(true)}>
-              Paste transcript
-            </Button>
-          </div>
-
-          {recordingUrl ? (
-            <div className="flex items-center gap-3">
-              <audio controls src={recordingUrl} className="h-8" />
-              <Button
-                variant="accent"
-                onClick={handleAudioUpload}
-                disabled={!audioFile || audioStatus === "uploading"}
-              >
-                Upload & process
-              </Button>
-            </div>
-          ) : null}
-
-          {audioMessage ? (
-            <p
-              className={`text-sm ${
-                audioStatus === "error" ? "text-red-600" : "text-emerald-600"
-              }`}
-            >
-              {audioMessage}
-            </p>
-          ) : null}
-
-          {extractionLoading ? (
-            <p className="text-sm text-amber-600">Processing transcript...</p>
-          ) : null}
-
-          {matchedExtraction ? (
-            <ExtractionReviewPanel
-              extraction={matchedExtraction}
-              onApply={applyExtraction}
-              onDismiss={dismissExtraction}
-              onCreateUnmatched={handleCreateUnmatched}
-            />
-          ) : null}
-        </Card>
-        ) : null}
-
-        {/* Post-save summary */}
-        {savedSummary && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-emerald-700">
-                  {savedSummary.isUpdate ? "Session updated" : "Session saved"} &mdash;{" "}
-                  {parseLocalDate(savedSummary.date).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </p>
-                <p className="mt-1 text-sm text-emerald-600">
-                  {savedSummary.techniques} technique
-                  {savedSummary.techniques !== 1 ? "s" : ""}
-                  {savedSummary.rounds > 0 &&
-                    ` · ${savedSummary.rounds} round${savedSummary.rounds !== 1 ? "s" : ""} · +${savedSummary.subsFor}/-${savedSummary.subsAgainst} subs`}
-                </p>
-                {editingSessionId === savedSummary.sessionId && viewMode === "view" ? (
-                  <p className="mt-1 text-xs text-emerald-600">
-                    Click Edit session below to change anything, or log a new one.
-                  </p>
-                ) : null}
-              </div>
+            <div className="v1-hdr-right">
               <button
-                type="button"
-                onClick={() => setSavedSummary(null)}
-                className="text-xs text-emerald-500"
+                className="v1-mic"
+                aria-label="Paste class transcript"
+                title="Paste class transcript"
+                onClick={() => setVoiceOpen(true)}
               >
-                Dismiss
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="1.5" width="4" height="7" rx="2" />
+                  <path d="M3 7v0.5a4 4 0 008 0V7" />
+                  <path d="M7 12v0.5" />
+                </svg>
               </button>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Link
-                href={`/sessions/${savedSummary.sessionId}`}
-                className="rounded-full border border-emerald-300 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
-              >
-                View session
-              </Link>
-              <button
-                type="button"
-                onClick={() => {
-                  resetForm();
-                  setSavedSummary(null);
-                  if (editSessionId) {
-                    router.replace("/log");
-                  }
-                }}
-                className="rounded-full border border-emerald-300 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
-              >
-                Log another
-              </button>
-            </div>
-          </div>
-        )}
-
-        <fieldset
-          disabled={readOnly}
-          className={`space-y-6 border-0 p-0 ${readOnly ? "[&_input]:bg-zinc-50 [&_textarea]:bg-zinc-50 [&_select]:bg-zinc-50" : ""}`}
-        >
-
-        {/* Collapsible Metadata Section */}
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50">
-          <button
-            type="button"
-            onClick={() => setShowMetadata(!showMetadata)}
-            className="flex w-full items-center justify-between px-5 py-3 text-left"
-          >
-            <span className="text-sm font-medium text-zinc-600">
-              Session details: {parseLocalDate(date).toLocaleDateString()} &bull;{" "}
-              {sessionType.replace(/-/g, " ")} &bull; {giOrNogi.toUpperCase()}
-              {durationMinutes ? ` • ${durationMinutes}min` : ""}
-            </span>
-            <span className="text-xs text-zinc-400">{showMetadata ? "Hide" : "Edit"}</span>
-          </button>
-          {(showMetadata || readOnly) && (
-            <div className="border-t border-zinc-200 px-5 py-4">
-              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-                <FormField
-                  label="Date"
+              <div className="date mono">
+                <input
+                  ref={dateInputRef}
                   type="date"
                   value={date}
-                  onChange={(event) => setDate(event.target.value)}
-                  required
+                  onChange={(e) => setDate(e.target.value)}
+                  className="v1-date-hidden"
+                  aria-label="Session date"
                 />
-                <FormField
-                  as="select"
-                  label="Session type"
-                  value={sessionType}
-                  onChange={(event) =>
-                    setSessionType(event.target.value as typeof sessionTypes[number])
-                  }
+                <button
+                  type="button"
+                  className="v1-date-btn"
+                  onClick={() => {
+                    const input = dateInputRef.current;
+                    if (!input) return;
+                    if (typeof input.showPicker === "function") {
+                      input.showPicker();
+                    } else {
+                      input.focus();
+                      input.click();
+                    }
+                  }}
                 >
-                  {sessionTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type.replace(/-/g, " ")}
-                    </option>
-                  ))}
-                </FormField>
-                <FormField
-                  as="select"
-                  label="Gi or NoGi"
-                  value={giOrNogi}
-                  onChange={(event) =>
-                    setGiOrNogi(event.target.value as "gi" | "nogi" | "both")
-                  }
-                >
-                  <option value="gi">Gi</option>
-                  <option value="nogi">NoGi</option>
-                  <option value="both">Both</option>
-                </FormField>
-                <FormField
-                  label="Duration (min)"
-                  type="number"
-                  min={0}
-                  value={durationMinutes}
-                  onChange={(event) =>
-                    setDurationMinutes(
-                      event.target.value === "" ? "" : Number(event.target.value),
-                    )
-                  }
-                  placeholder="Optional"
-                />
+                  {formatHeaderDate(date)}
+                </button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Techniques Section (always visible, collapsible) */}
-        <section className="space-y-4">
-          <button
-            type="button"
-            onClick={() => setShowTechniques(!showTechniques)}
-            className="flex w-full items-center justify-between"
-          >
-            <h2 className="text-lg font-semibold">What did you work on?</h2>
-            <span className="text-xs text-zinc-400">
-              {showTechniques ? "Collapse" : "Expand"}
-              {!showTechniques && techniqueDrafts.some((d) => d.positionId || d.techniqueId)
-                ? ` (${techniqueDrafts.filter((d) => d.positionId || d.techniqueId).length} items)`
-                : ""}
-            </span>
-          </button>
-          {(showTechniques || readOnly) && (
-            <div className="space-y-4">
-              {!readOnly ? (
-                <div className="flex justify-end">
-                  <Button variant="secondary" size="sm" onClick={addTechnique}>
-                    Add technique
-                  </Button>
-                </div>
-              ) : null}
+          <section>
+            <div className="label">
+              <span>Class</span>
+              <span className="mono">Gi · No-Gi · Open Mat</span>
+            </div>
+            <div className="v1-cls">
+              {CLASS_TYPES.map((c, i) => (
+                <button
+                  key={c.label}
+                  className={i === classIdx ? "on" : ""}
+                  onClick={() => setClassIdx(i)}
+                  type="button"
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </section>
 
-            {techniqueDrafts.map((draft, indexValue) => {
-              const technique = draft.techniqueId
-                ? index.techniquesById.get(draft.techniqueId) ?? null
-                : null;
-              const position = draft.positionId
-                ? index.positionsById.get(draft.positionId) ?? null
-                : null;
-              const suggestions = buildTagSuggestions(technique, tagSuggestions);
-
-              return (
-                <Card key={draft.id} variant="nested">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-semibold text-zinc-700">
-                        Technique {indexValue + 1}
-                      </h3>
-                      {draft.fromExtraction ? (
-                        <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
-                          Auto-filled · verify
-                        </span>
-                      ) : null}
-                    </div>
-                    {techniqueDrafts.length > 1 ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeTechnique(draft.id)}
-                        className="hover:text-red-500"
-                      >
-                        Remove
-                      </Button>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2 text-sm font-medium text-zinc-700">
-                      <span>Position</span>
-                      <PositionPicker
-                        value={draft.positionId}
-                        onChange={(positionId) =>
-                          updateTechnique(draft.id, {
-                            positionId,
-                            techniqueId: null,
+          <section>
+            <div className="label">
+              <span>Moves Drilled</span>
+              <span className="num mono">
+                {loggedCount} logged · {noteCount} noted
+              </span>
+            </div>
+            <div className="tbl">
+              <div className="row head">
+                <div className="cell-h" />
+                <div className="cell-h">Position</div>
+                <div className="cell-h">Technique</div>
+                <div className="cell-h pencil">✎</div>
+              </div>
+              {moves.map((m, i) => {
+                const target = targetForMove(m);
+                const isOpen = openNoteKey === m.key;
+                const rowFocused =
+                  focusedCell?.moveKey === m.key && focusedCell.field;
+                return (
+                  <div key={m.key}>
+                    <div className="row">
+                      <div className="n mono">{String(i + 1).padStart(2, "0")}</div>
+                      <input
+                        className="mono"
+                        value={m.posName}
+                        placeholder="Closed Guard…"
+                        onChange={(e) =>
+                          updateMove(m.key, {
+                            posName: e.target.value,
+                            posId: null,
                           })
                         }
-                        recentPositionIds={recentPositionIds}
-                        index={index}
-                        onAddCustomPosition={addCustomPosition}
-                      />
-                      {position && (
-                        <button
-                          type="button"
-                          onClick={() => openTaxonomyCard("position", position.id)}
-                          className="text-xs text-amber-600 hover:underline"
-                        >
-                          View {position.name} details
-                        </button>
-                      )}
-                    </div>
-                    <div className="space-y-2 text-sm font-medium text-zinc-700">
-                      <span>Technique (optional)</span>
-                      <TechniquePicker
-                        value={draft.techniqueId}
-                        positionId={draft.positionId}
-                        onChange={(techniqueId) =>
-                          updateTechnique(draft.id, { techniqueId })
+                        onFocus={() =>
+                          setFocusedCell({ moveKey: m.key, field: "pos" })
                         }
-                        recentTechniqueIds={recentTechniqueIds}
-                        index={index}
-                        onAddCustomTechnique={addCustomTechnique}
+                        onBlur={() =>
+                          setTimeout(() => {
+                            setFocusedCell((c) =>
+                              c?.moveKey === m.key && c.field === "pos"
+                                ? null
+                                : c,
+                            );
+                          }, 150)
+                        }
                       />
-                      {technique && (
-                        <button
-                          type="button"
-                          onClick={() => openTaxonomyCard("technique", technique.id)}
-                          className="text-xs text-amber-600 hover:underline"
+                      <input
+                        className="mono"
+                        value={m.techName}
+                        placeholder="Hip Bump Sweep…"
+                        onChange={(e) =>
+                          updateMove(m.key, {
+                            techName: e.target.value,
+                            techId: null,
+                          })
+                        }
+                        onFocus={() =>
+                          setFocusedCell({ moveKey: m.key, field: "tech" })
+                        }
+                        onBlur={() =>
+                          setTimeout(() => {
+                            setFocusedCell((c) =>
+                              c?.moveKey === m.key && c.field === "tech"
+                                ? null
+                                : c,
+                            );
+                          }, 150)
+                        }
+                      />
+                      <button
+                        className={`notebtn ${m.note ? "has" : ""}`}
+                        onClick={() =>
+                          setOpenNoteKey(isOpen ? null : m.key)
+                        }
+                        disabled={!target}
+                        style={{
+                          opacity: target ? 1 : 0.25,
+                          cursor: target ? "pointer" : "default",
+                        }}
+                        title={
+                          target
+                            ? `Note on ${target === "tech" ? "technique" : "position"}`
+                            : "Enter a position first"
+                        }
+                        type="button"
+                        aria-label="Toggle note"
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinecap="round"
                         >
-                          View {technique.name} details
-                        </button>
-                      )}
+                          <path d="M2 3h8M2 6h8M2 9h5" />
+                        </svg>
+                      </button>
                     </div>
-                  </div>
-
-                  {/* Notes — always visible, compact */}
-                  <textarea
-                    value={draft.notes}
-                    onChange={(event) =>
-                      updateTechnique(draft.id, {
-                        notes: event.target.value,
-                        notesExpanded: true,
-                      })
-                    }
-                    placeholder="Notes — what did you learn?"
-                    rows={2}
-                    className="mt-3 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm placeholder:text-zinc-400"
-                  />
-
-                  {/* Tags — collapsed, secondary */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateTechnique(draft.id, { expanded: !draft.expanded })
-                    }
-                    className="mt-2 text-xs font-semibold text-zinc-500"
-                  >
-                    {draft.expanded
-                      ? "Hide tags"
-                      : draft.keyDetails.length > 0
-                        ? `Tags (${draft.keyDetails.length})`
-                        : "Add tags"}
-                  </button>
-
-                  {draft.expanded ? (
-                    <div className="mt-2 rounded-xl border border-zinc-100 bg-zinc-50 p-4">
-                      <p className="text-sm font-semibold text-zinc-700">Key details</p>
-                      <div className="mt-2">
-                        <TagPicker
-                          value={draft.keyDetails}
-                          suggestions={suggestions}
-                          onChange={(tags) =>
-                            updateTechnique(draft.id, { keyDetails: tags })
-                          }
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-                </Card>
-              );
-            })}
-            </div>
-          )}
-        </section>
-
-        {/* Sparring Section (always visible, collapsible) */}
-        <section className="space-y-4">
-          <button
-            type="button"
-            onClick={() => setShowSparring(!showSparring)}
-            className="flex w-full items-center justify-between"
-          >
-            <h2 className="text-lg font-semibold">How did sparring go?</h2>
-            <span className="text-xs text-zinc-400">
-              {showSparring ? "Collapse" : "Expand"}
-              {!showSparring && roundDrafts.some((r) => r.partnerName.trim() || r.submissionsForCount > 0 || r.submissionsAgainstCount > 0)
-                ? ` (${roundDrafts.filter((r) => r.partnerName.trim() || r.submissionsForCount > 0 || r.submissionsAgainstCount > 0).length} rounds)`
-                : ""}
-            </span>
-          </button>
-          {(showSparring || readOnly) && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {roundDrafts.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setCompactRounds(!compactRounds)}
-                    className="text-xs font-semibold text-zinc-500"
-                  >
-                    {compactRounds ? "Expand all" : "Compact view"}
-                  </button>
-                )}
-                {!readOnly ? (
-                  <Button variant="secondary" size="sm" onClick={addRound}>
-                    Add round
-                  </Button>
-                ) : null}
-              </div>
-
-            <div className="space-y-4">
-              {roundDrafts.map((round, roundIndex) => {
-                const belt = beltOptions.find(
-                  (option) => option.value === round.partnerBelt,
-                );
-                const partnerQuery = round.partnerName.trim().toLowerCase();
-                const partnerMatches = partnerQuery
-                  ? partnerSuggestions
-                      .filter(
-                        (name) =>
-                          name.toLowerCase().includes(partnerQuery) &&
-                          name.toLowerCase() !== partnerQuery,
-                      )
-                      .slice(0, 5)
-                  : [];
-
-                const isExpanded = !compactRounds || expandedRoundIds.has(round.id);
-
-                // Compact row view
-                if (!isExpanded) {
-                  const dominantLabels = round.dominantPositions
-                    .map((id) => index.positionsById.get(id)?.name)
-                    .filter(Boolean)
-                    .join(", ");
-                  return (
-                    <button
-                      key={round.id}
-                      type="button"
-                      onClick={() =>
-                        setExpandedRoundIds((prev) => {
-                          const next = new Set(prev);
-                          next.add(round.id);
-                          return next;
-                        })
-                      }
-                      className="flex w-full items-center gap-3 rounded-xl border border-zinc-100 bg-white px-4 py-3 text-left text-sm transition hover:border-zinc-200 hover:shadow-sm"
-                    >
-                      <span className="w-8 shrink-0 font-semibold text-zinc-400">
-                        R{roundIndex + 1}
-                      </span>
-                      {round.fromExtraction ? (
-                        <span
-                          title="Auto-filled — verify"
-                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
-                        />
-                      ) : null}
-                      <span className="flex min-w-0 flex-1 items-center gap-2">
-                        {belt && (
-                          <span
-                            className={`h-2.5 w-2.5 shrink-0 rounded-full border ${belt.dotClass}`}
-                          />
-                        )}
-                        <span className="truncate font-medium text-zinc-700">
-                          {round.partnerName.trim() || "Partner unknown"}
-                        </span>
-                      </span>
-                      <span className="shrink-0 font-semibold text-zinc-600">
-                        +{round.submissionsForCount} / -{round.submissionsAgainstCount}
-                      </span>
-                      {dominantLabels && (
-                        <span className="hidden truncate text-xs text-zinc-400 sm:block">
-                          {dominantLabels}
-                        </span>
-                      )}
-                    </button>
-                  );
-                }
-
-                return (
-                  <Card key={round.id} variant="nested">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-sm font-semibold text-zinc-700">
-                          Round {roundIndex + 1}
-                        </h3>
-                        {round.fromExtraction ? (
-                          <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
-                            Auto-filled · verify
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {compactRounds && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedRoundIds((prev) => {
-                                const next = new Set(prev);
-                                next.delete(round.id);
-                                return next;
-                              })
-                            }
-                            className="text-xs font-semibold text-zinc-500"
-                          >
-                            Compact
-                          </button>
-                        )}
-                        {roundDrafts.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeRound(round.id)}
-                            className="text-xs font-semibold text-zinc-500 transition hover:text-red-500"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2 text-sm font-medium text-zinc-700">
-                        <span>Partner</span>
-                        <div className="relative">
-                          <input
-                            value={round.partnerName}
-                            onChange={(event) =>
-                              updateRound(round.id, { partnerName: event.target.value })
-                            }
-                            placeholder="Name or initials"
-                            className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                          />
-                          {partnerMatches.length > 0 ? (
-                            <div className="absolute z-10 mt-2 w-full rounded-lg border border-zinc-200 bg-white shadow-sm">
-                              {partnerMatches.map((name) => (
-                                <button
-                                  key={name}
-                                  type="button"
-                                  onClick={() =>
-                                    updateRound(round.id, { partnerName: name })
-                                  }
-                                  className="block w-full px-3 py-2 text-left text-sm hover:bg-zinc-50"
-                                >
-                                  {name}
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="space-y-2 text-sm font-medium text-zinc-700">
-                        <span>Belt</span>
-                        <button
-                          type="button"
-                          onClick={() => setBeltPickerRoundId(round.id)}
-                          className="flex w-full items-center justify-between rounded-lg border border-zinc-200 px-3 py-2 text-left text-sm"
-                        >
-                          <span className="flex items-center gap-2">
-                            <span
-                              className={`h-2.5 w-2.5 rounded-full border ${
-                                belt?.dotClass ?? "border-zinc-300 bg-zinc-100"
-                              }`}
-                            />
-                            <span>{belt?.label ?? "Select belt"}</span>
-                          </span>
-                          <span className="text-xs text-zinc-400">v</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                      {([
-                        { label: "I submitted", side: "for" as const },
-                        { label: "I got caught", side: "against" as const },
-                      ] as const).map(({ label, side }) => {
-                        const submissions =
-                          side === "for" ? round.submissionsFor : round.submissionsAgainst;
-                        const submissionCount =
-                          side === "for"
-                            ? round.submissionsForCount
-                            : round.submissionsAgainstCount;
-                        return (
-                          <div
-                            key={label}
-                            className="rounded-xl border border-zinc-100 bg-white p-4"
-                          >
-                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-                              {label}
-                            </p>
-                            <div className="mt-3 flex items-center gap-3">
-                              <button
-                                type="button"
-                                onClick={() => decrementSubmissionCount(round.id, side)}
-                                className="h-9 w-9 rounded-full border border-zinc-200 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
-                              >
-                                -
-                              </button>
-                              <span className="text-lg font-semibold text-zinc-800">
-                                {submissionCount}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => incrementSubmissionCount(round.id, side)}
-                                className="h-9 w-9 rounded-full border border-zinc-200 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
-                              >
-                                +
-                              </button>
-                            </div>
-
-                            {submissions.length > 0 ? (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {submissions.map((submission) => {
-                                  const technique = index.techniquesById.get(
-                                    submission.techniqueId,
-                                  );
-
-                                  return (
-                                    <span
-                                      key={submission.id}
-                                      className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
-                                    >
-                                      <ClickableTaxonomy
-                                        type="technique"
-                                        id={submission.techniqueId}
-                                        name={technique?.name ?? "Unknown"}
-                                        onClick={openTaxonomyCard}
-                                        className="text-amber-700 no-underline hover:underline"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          removeSubmission(round.id, side, submission.id)
-                                        }
-                                        className="text-xs text-amber-600 hover:text-amber-800"
-                                      >
-                                        x
-                                      </button>
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            ) : null}
-
+                    {rowFocused === "pos" &&
+                      (positionSuggestions.length > 0 || showAddPosition) && (
+                        <div className="sugg-row">
+                          {positionSuggestions.map((p) => (
                             <button
+                              key={p.id}
+                              className="sugg-chip"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                updateMove(m.key, {
+                                  posName: p.name,
+                                  posId: p.id,
+                                })
+                              }
                               type="button"
-                              onClick={() => openSubmissionPicker(round.id, side)}
-                              className="mt-3 text-xs font-semibold text-zinc-500"
                             >
-                              Add submission detail
+                              {p.name}
                             </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateRound(round.id, {
-                          notesExpanded: !round.notesExpanded,
-                        })
-                      }
-                      className="mt-4 text-xs font-semibold text-zinc-500"
-                    >
-                      {round.notesExpanded ? "Collapse position notes" : "Add position notes"}
-                    </button>
-
-                    {round.notesExpanded ? (
-                      <div className="mt-4 space-y-4 rounded-xl border border-zinc-100 bg-white p-4">
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-2 text-sm font-medium text-zinc-700">
-                            <div className="flex items-center justify-between">
-                              <span>Where I dominated</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPositionSearch("");
-                                  setPositionPickerTarget({
-                                    roundId: round.id,
-                                    type: "dominant",
-                                  });
-                                }}
-                                className="text-xs font-semibold text-amber-600"
-                              >
-                                Add position
-                              </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {round.dominantPositions.map((positionId) => {
-                                const pos = index.positionsById.get(positionId);
-                                return (
-                                  <span
-                                    key={positionId}
-                                    className="flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600"
-                                  >
-                                    {pos ? (
-                                      <ClickableTaxonomy
-                                        type="position"
-                                        id={positionId}
-                                        name={pos.name}
-                                        onClick={openTaxonomyCard}
-                                        className="text-zinc-600 no-underline hover:underline"
-                                      />
-                                    ) : (
-                                      positionId
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        toggleRoundPosition(
-                                          round.id,
-                                          "dominant",
-                                          positionId,
-                                        )
-                                      }
-                                      className="text-xs text-zinc-500 hover:text-zinc-700"
-                                    >
-                                      x
-                                    </button>
-                                  </span>
-                                );
-                              })}
-                              {round.dominantPositions.length === 0 ? (
-                                <span className="text-xs text-zinc-400">None yet.</span>
-                              ) : null}
-                            </div>
-                          </div>
-                          <div className="space-y-2 text-sm font-medium text-zinc-700">
-                            <div className="flex items-center justify-between">
-                              <span>Where I got stuck</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPositionSearch("");
-                                  setPositionPickerTarget({
-                                    roundId: round.id,
-                                    type: "stuck",
-                                  });
-                                }}
-                                className="text-xs font-semibold text-amber-600"
-                              >
-                                Add position
-                              </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {round.stuckPositions.map((positionId) => {
-                                const pos = index.positionsById.get(positionId);
-                                return (
-                                  <span
-                                    key={positionId}
-                                    className="flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-semibold text-zinc-600"
-                                  >
-                                    {pos ? (
-                                      <ClickableTaxonomy
-                                        type="position"
-                                        id={positionId}
-                                        name={pos.name}
-                                        onClick={openTaxonomyCard}
-                                        className="text-zinc-600 no-underline hover:underline"
-                                      />
-                                    ) : (
-                                      positionId
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        toggleRoundPosition(round.id, "stuck", positionId)
-                                      }
-                                      className="text-xs text-zinc-500 hover:text-zinc-700"
-                                    >
-                                      x
-                                    </button>
-                                  </span>
-                                );
-                              })}
-                              {round.stuckPositions.length === 0 ? (
-                                <span className="text-xs text-zinc-400">None yet.</span>
-                              ) : null}
-                            </div>
-                          </div>
+                          ))}
+                          {showAddPosition && (
+                            <button
+                              className="sugg-chip sugg-add"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                handleAddCustomPosition(m.key, m.posName)
+                              }
+                              type="button"
+                              title="Create a custom position"
+                            >
+                              + Add &ldquo;{m.posName}&rdquo;
+                            </button>
+                          )}
                         </div>
-                        <label className="space-y-2 text-sm font-medium text-zinc-700">
-                          Round notes
-                          <textarea
-                            value={round.notes}
-                            onChange={(event) =>
-                              updateRound(round.id, { notes: event.target.value })
-                            }
-                            placeholder="What worked or failed?"
-                            className="min-h-[90px] w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                          />
-                        </label>
+                      )}
+                    {rowFocused === "tech" &&
+                      (techniqueSuggestions.length > 0 || showAddTechnique) && (
+                        <div className="sugg-row">
+                          {techniqueSuggestions.map((t) => (
+                            <button
+                              key={t.id}
+                              className="sugg-chip"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                updateMove(m.key, {
+                                  techName: t.name,
+                                  techId: t.id,
+                                  posId:
+                                    m.posId ??
+                                    (t.positionFromId || null),
+                                  posName:
+                                    m.posName ||
+                                    taxIndex.positionsById.get(
+                                      t.positionFromId,
+                                    )?.name ||
+                                    "",
+                                })
+                              }
+                              type="button"
+                            >
+                              {t.name}
+                            </button>
+                          ))}
+                          {showAddTechnique && m.posId && (
+                            <button
+                              className="sugg-chip sugg-add"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                handleAddCustomTechnique(
+                                  m.key,
+                                  m.techName,
+                                  m.posId!,
+                                )
+                              }
+                              type="button"
+                              title="Create a custom technique (default category: submission)"
+                            >
+                              + Add &ldquo;{m.techName}&rdquo;
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    {isOpen && target && (
+                      <div className="noterow">
+                        <div className="target">
+                          <span className="pin">↳</span>
+                          <span>cue attached to</span>
+                          <span
+                            className={target === "tech" ? "t-tech" : "t-pos"}
+                          >
+                            {target === "tech" ? m.techName : m.posName}
+                          </span>
+                        </div>
+                        <textarea
+                          autoFocus
+                          value={m.note}
+                          placeholder="thumb up · elbow tight · hip escape before framing"
+                          onChange={(e) =>
+                            updateMove(m.key, { note: e.target.value })
+                          }
+                          onBlur={() => {
+                            if (!m.note) setOpenNoteKey(null);
+                          }}
+                        />
                       </div>
-                    ) : null}
-                  </Card>
+                    )}
+                  </div>
                 );
               })}
             </div>
-            </div>
-          )}
-        </section>
-
-        {/* Notes Section - Collapsed by default */}
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50">
-          <button
-            type="button"
-            onClick={() => setNotesOpen((open) => !open)}
-            className="flex w-full items-center justify-between px-5 py-3 text-left"
-          >
-            <span className="text-sm font-medium text-zinc-600">
-              Session notes & reflections
-              {notes.trim() || insights.trim() || goalsForNext.trim()
-                ? " (has content)"
-                : ""}
-            </span>
-            <span className="text-xs text-zinc-400">
-              {notesOpen
-                ? "Hide"
-                : notes.trim() || insights.trim() || goalsForNext.trim()
-                  ? "Edit"
-                  : "Add"}
-            </span>
-          </button>
-          {(notesOpen || readOnly || notes.trim() || insights.trim() || goalsForNext.trim()) && (
-            <div className="border-t border-zinc-200 px-5 py-4 space-y-4">
-              <FormField
-                as="textarea"
-                label="Session notes"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                placeholder="What did you learn today?"
-              />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FormField
-                  label="Insights (comma separated)"
-                  value={insights}
-                  onChange={(event) => setInsights(event.target.value)}
-                  placeholder="posture, grip breaking"
-                />
-                <FormField
-                  label="Goals for next session"
-                  value={goalsForNext}
-                  onChange={(event) => setGoalsForNext(event.target.value)}
-                  placeholder="play more open guard"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Modals */}
-        <Modal
-          open={Boolean(beltPickerRoundId)}
-          onClose={() => setBeltPickerRoundId(null)}
-          title="Select belt level"
-        >
-          <div className="space-y-2">
-            {beltOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  if (beltPickerRoundId) {
-                    updateRound(beltPickerRoundId, { partnerBelt: option.value });
-                  }
-                  setBeltPickerRoundId(null);
-                }}
-                className="flex w-full items-center gap-3 rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-              >
-                <span
-                  className={`h-3 w-3 rounded-full border ${option.dotClass}`}
-                />
-                <span>{option.label}</span>
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                if (beltPickerRoundId) {
-                  updateRound(beltPickerRoundId, { partnerBelt: null });
-                }
-                setBeltPickerRoundId(null);
-              }}
-              className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-500"
-            >
-              Clear selection
+            <button className="addrow" onClick={addMove} type="button">
+              + Add row
             </button>
-          </div>
-        </Modal>
+          </section>
 
-        {/* Unified submission picker — search → (optional) disambiguate or create custom, without stacking modals */}
-        <Modal
-          open={Boolean(submissionPicker)}
-          onClose={() => {
-            setSubmissionPicker(null);
-            setSubmissionSearch("");
-            setAmbiguousSubmission(null);
-            setCustomSubmissionTarget(null);
-            setCustomSubmissionName("");
-            setCustomSubmissionPositionId("");
-          }}
-          title={
-            customSubmissionTarget
-              ? "Add custom submission"
-              : ambiguousSubmission
-                ? ambiguousTechnique
-                  ? `${ambiguousTechnique.name} — from where?`
-                  : "From where?"
-                : "Select submission"
-          }
-        >
-          {customSubmissionTarget ? (
-            <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomSubmissionTarget(null);
-                  setCustomSubmissionName("");
-                  setCustomSubmissionPositionId("");
-                }}
-                className="text-xs font-semibold text-zinc-500"
-              >
-                ← Back to search
-              </button>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
-                Name
-                <input
-                  value={customSubmissionName}
-                  onChange={(event) => setCustomSubmissionName(event.target.value)}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                  placeholder="Armbar"
-                />
-              </label>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
-                Starting position
-                <select
-                  value={customSubmissionPositionId}
-                  onChange={(event) => setCustomSubmissionPositionId(event.target.value)}
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                >
-                  <option value="">Select position</option>
-                  {index.positionsInTreeOrder.map((position) => (
-                    <option key={position.id} value={position.id}>
-                      {index.getFullPath(position.id)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomSubmissionTarget(null);
-                    setCustomSubmissionName("");
-                    setCustomSubmissionPositionId("");
-                  }}
-                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCustomSubmissionSave}
-                  className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
-                >
-                  Add submission
-                </button>
+          <section>
+            <div className="label">
+              <span>Sparring Rounds</span>
+              <span className="num mono">{totalRounds} rolls</span>
+            </div>
+            {rounds.length > 0 && (
+              <div className="roll head">
+                <span />
+                <span>Partner</span>
+                <span>Subs</span>
+                <span>Tapped</span>
               </div>
-            </div>
-          ) : ambiguousSubmission ? (
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setAmbiguousSubmission(null)}
-                className="text-xs font-semibold text-zinc-500"
-              >
-                ← Back to search
-              </button>
-              {ambiguousOptions.map((positionId) => (
-                <button
-                  key={positionId}
-                  type="button"
-                  onClick={() => handleAmbiguousPositionSelect(positionId)}
-                  className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                >
-                  <span>{index.positionsById.get(positionId)?.name ?? positionId}</span>
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => handleAmbiguousPositionSelect(null)}
-                className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-500"
-              >
-                Skip position
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <input
-                value={submissionSearch}
-                onChange={(event) => setSubmissionSearch(event.target.value)}
-                placeholder="Search submissions"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-              />
-
-              {submissionSearch.trim() ? (
-                <div className="space-y-2">
-                  {submissionResults.length === 0 ? (
-                    <p className="text-sm text-zinc-500">No submissions found.</p>
-                  ) : (
-                    submissionResults.map((technique) => (
-                      <button
-                        key={technique.id}
-                        type="button"
-                        onClick={() =>
-                          submissionPicker &&
-                          handleSubmissionSelect(
-                            submissionPicker.roundId,
-                            submissionPicker.side,
-                            technique.id,
-                          )
-                        }
-                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                      >
-                        <span>{technique.name}</span>
-                      </button>
-                    ))
+            )}
+            {rounds.map((r) => {
+              const partnerOpen = focusedPartnerKey === r.key;
+              return (
+                <div key={r.key}>
+                  <div className="roll">
+                    <div className="belt-wrap">
+                      <div
+                        className="belt"
+                        style={{ background: BELT_COLORS[r.belt] }}
+                        onClick={() => cycleBelt(r.key)}
+                        title="Tap to cycle belt"
+                      />
+                    </div>
+                    <input
+                      className="partner mono"
+                      value={r.partnerName}
+                      placeholder="name"
+                      onChange={(e) =>
+                        updateRound(r.key, { partnerName: e.target.value })
+                      }
+                      onFocus={() => setFocusedPartnerKey(r.key)}
+                      onBlur={() =>
+                        setTimeout(() => {
+                          setFocusedPartnerKey((k) =>
+                            k === r.key ? null : k,
+                          );
+                        }, 150)
+                      }
+                    />
+                    <div className="score">
+                      <button onClick={() => bumpRound(r.key, "subsFor", -1)} type="button">−</button>
+                      <div className="v mono">{r.subsFor}</div>
+                      <button onClick={() => bumpRound(r.key, "subsFor", 1)} type="button">+</button>
+                    </div>
+                    <div className="score">
+                      <button onClick={() => bumpRound(r.key, "subsAgainst", -1)} type="button">−</button>
+                      <div className="v mono">{r.subsAgainst}</div>
+                      <button onClick={() => bumpRound(r.key, "subsAgainst", 1)} type="button">+</button>
+                    </div>
+                  </div>
+                  {partnerOpen && filteredPartnerSuggestions.length > 0 && (
+                    <div className="partner-suggest">
+                      {filteredPartnerSuggestions.map((name) => (
+                        <button
+                          key={name}
+                          className="partner-chip"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            updateRound(r.key, { partnerName: name });
+                            setFocusedPartnerKey(null);
+                          }}
+                          type="button"
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {commonSubmissions.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-                        Common
-                      </p>
-                      {commonSubmissions.map((technique) => (
-                        <button
-                          key={technique.id}
-                          type="button"
-                          onClick={() =>
-                            submissionPicker &&
-                            handleSubmissionSelect(
-                              submissionPicker.roundId,
-                              submissionPicker.side,
-                              technique.id,
-                            )
-                          }
-                          className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                        >
-                          <span>{technique.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+              );
+            })}
+            <button className="addrow" onClick={addRound} type="button">
+              + Add round
+            </button>
 
-                  {recentSubmissions.length > 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-                        Recent
-                      </p>
-                      {recentSubmissions.map((technique) => (
-                        <button
-                          key={technique.id}
-                          type="button"
-                          onClick={() =>
-                            submissionPicker &&
-                            handleSubmissionSelect(
-                              submissionPicker.roundId,
-                              submissionPicker.side,
-                              technique.id,
-                            )
-                          }
-                          className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                        >
-                          <span>{technique.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-                      All submissions
-                    </p>
-                    {submissionList.map((technique) => (
-                      <button
-                        key={technique.id}
-                        type="button"
-                        onClick={() =>
-                          submissionPicker &&
-                          handleSubmissionSelect(
-                            submissionPicker.roundId,
-                            submissionPicker.side,
-                            technique.id,
-                          )
-                        }
-                        className="flex w-full items-center justify-between rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                      >
-                        <span>{technique.name}</span>
-                      </button>
-                    ))}
+            {rounds.length > 0 && (
+              <div className="totals">
+                <div className="t">
+                  <div className="k">Rolls</div>
+                  <div className="v mono">{totalRounds}</div>
+                </div>
+                <div className="t">
+                  <div className="k">Subs</div>
+                  <div className="v mono">{totalSubs}</div>
+                </div>
+                <div className="t">
+                  <div className="k">Tapped</div>
+                  <div className="v mono">{totalSubbed}</div>
+                </div>
+                <div className="t">
+                  <div className="k">Net</div>
+                  <div
+                    className="v mono"
+                    style={{
+                      color:
+                        totalSubs >= totalSubbed ? "#1a1815" : "#7a3028",
+                    }}
+                  >
+                    {totalSubs - totalSubbed >= 0 ? "+" : ""}
+                    {totalSubs - totalSubbed}
                   </div>
                 </div>
-              )}
+              </div>
+            )}
+          </section>
 
-              {submissionPicker ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    openCustomSubmission(
-                      submissionPicker.roundId,
-                      submissionPicker.side,
-                    )
-                  }
-                  className="w-full rounded-lg border border-dashed border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-600"
-                >
-                  Can&apos;t find it? Add custom submission
-                </button>
-              ) : null}
-            </div>
+          {saving === "error" && saveError && (
+            <div className="v1-err">{saveError}</div>
           )}
-        </Modal>
 
-        <Modal
-          open={Boolean(positionPickerTarget)}
-          onClose={() => {
-            setPositionPickerTarget(null);
-            setPositionSearch("");
-          }}
-          title={
-            positionPickerTarget?.type === "dominant"
-              ? "Where did you dominate?"
-              : "Where did you get stuck?"
-          }
-        >
-          <div className="space-y-4">
-            <input
-              value={positionSearch}
-              onChange={(event) => setPositionSearch(event.target.value)}
-              placeholder="Search positions"
-              className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-            />
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-400">
-              {activePositions.length} selected
-            </p>
-            <div className="space-y-2">
-              {filteredPositionOptions.length === 0 ? (
-                <p className="text-sm text-zinc-500">No positions found.</p>
-              ) : (
-                filteredPositionOptions.map((option) => {
-                const checked = activePositions.includes(option.id);
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() =>
-                      positionPickerTarget &&
-                      toggleRoundPosition(
-                        positionPickerTarget.roundId,
-                        positionPickerTarget.type,
-                        option.id,
-                      )
-                    }
-                    className="flex w-full items-center gap-3 rounded-lg border border-zinc-100 px-3 py-2 text-left text-sm"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      readOnly
-                      className="h-4 w-4"
-                    />
-                    <span>{option.label}</span>
-                  </button>
-                );
-                })
-              )}
-            </div>
+          <div className="submit">
             <button
+              className="draft"
               type="button"
-              onClick={() => {
-                setPositionPickerTarget(null);
-                setPositionSearch("");
-              }}
-              className="w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
+              onClick={() => router.push("/sessions")}
             >
-              Done
+              Cancel
+            </button>
+            <button
+              className="save"
+              type="button"
+              onClick={handleSave}
+              disabled={!canSave}
+            >
+              {saving === "saving"
+                ? "Saving…"
+                : editSessionId
+                  ? "Update Entry"
+                  : "Save"}
             </button>
           </div>
-        </Modal>
-
-        <Modal
-          open={Boolean(createUnmatchedItem)}
-          onClose={() => setCreateUnmatchedItem(null)}
-          title={
-            createUnmatchedItem?.type === "position"
-              ? "Create custom position"
-              : "Create custom technique"
-          }
-        >
-          {createUnmatchedItem?.type === "position" ? (
-            <div className="space-y-4">
-              <p className="text-sm text-zinc-600">
-                Create a custom position for &quot;{createUnmatchedItem.name}&quot;
-              </p>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
-                Name
-                <input
-                  defaultValue={createUnmatchedItem.name}
-                  id="unmatched-position-name"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
-                Parent position (optional)
-                <select
-                  id="unmatched-position-parent"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                  defaultValue=""
-                >
-                  <option value="">None (root position)</option>
-                  {index.positionsInTreeOrder.map((position) => (
-                    <option key={position.id} value={position.id}>
-                      {index.getFullPath(position.id)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCreateUnmatchedItem(null)}
-                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nameInput = document.getElementById("unmatched-position-name") as HTMLInputElement;
-                    const parentSelect = document.getElementById("unmatched-position-parent") as HTMLSelectElement;
-                    const name = nameInput?.value.trim();
-                    const parentId = parentSelect?.value || null;
-                    if (name) {
-                      addCustomPosition({ name, parentId, perspective: "neutral" });
-                      handleUnmatchedCreated();
-                    }
-                  }}
-                  className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
-                >
-                  Create position
-                </button>
-              </div>
-            </div>
-          ) : createUnmatchedItem?.type === "technique" ? (
-            <div className="space-y-4">
-              <p className="text-sm text-zinc-600">
-                Create a custom technique for &quot;{createUnmatchedItem.name}&quot;
-                {createUnmatchedItem.context?.positionName && (
-                  <> from {createUnmatchedItem.context.positionName}</>
-                )}
-              </p>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
-                Name
-                <input
-                  defaultValue={createUnmatchedItem.name}
-                  id="unmatched-technique-name"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="space-y-2 text-sm font-medium text-zinc-700">
-                Starting position
-                <select
-                  id="unmatched-technique-position"
-                  className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                  defaultValue={createUnmatchedItem.context?.positionId ?? ""}
-                >
-                  <option value="">Select position</option>
-                  {index.positionsInTreeOrder.map((position) => (
-                    <option key={position.id} value={position.id}>
-                      {index.getFullPath(position.id)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCreateUnmatchedItem(null)}
-                  className="rounded-full border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const nameInput = document.getElementById("unmatched-technique-name") as HTMLInputElement;
-                    const positionSelect = document.getElementById("unmatched-technique-position") as HTMLSelectElement;
-                    const name = nameInput?.value.trim();
-                    const positionFromId = positionSelect?.value;
-                    if (name && positionFromId) {
-                      addCustomTechnique({ name, category: "transition", positionFromId, positionToId: null });
-                      handleUnmatchedCreated();
-                    }
-                  }}
-                  className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
-                >
-                  Create technique
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </Modal>
-
-        <Modal
-          open={showExtractionDebug}
-          onClose={() => setShowExtractionDebug(false)}
-          title="Paste Transcript"
-        >
-          <div className="space-y-4">
-            <div>
-              <p className="text-sm text-zinc-600 mb-2">
-                Paste your session notes or transcript to auto-fill the form.
-              </p>
-              <textarea
-                value={debugTranscriptInput}
-                onChange={(event) => setDebugTranscriptInput(event.target.value)}
-                rows={6}
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm"
-                placeholder="Today we worked on closed guard, arm bar from guard..."
-              />
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <button
-                  type="button"
-                  onClick={handleTranscriptTextExtraction}
-                  disabled={debugStatus === "running"}
-                  className="rounded-full bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-200"
-                >
-                  {debugStatus === "running" ? "Processing..." : "Extract session data"}
-                </button>
-                {debugMessage ? (
-                  <span
-                    className={`text-xs ${
-                      debugStatus === "error" ? "text-red-600" : "text-emerald-600"
-                    }`}
-                  >
-                    {debugMessage}
-                  </span>
-                ) : null}
-              </div>
-            </div>
-
-            {transcriptStatus === "loading" && (
-              <p className="text-xs text-zinc-500">Loading transcript...</p>
-            )}
-            {transcriptStatus === "error" && transcriptMessage && (
-              <p className="text-xs font-semibold text-red-600">{transcriptMessage}</p>
-            )}
-
-            {(transcriptText || rawExtraction || matchedExtraction) && (
-              <>
-                {transcriptText && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                      Transcript
-                    </p>
-                    <pre className="mt-2 max-h-32 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
-                      {transcriptText}
-                    </pre>
-                  </div>
-                )}
-                {rawExtraction && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                      Extracted Data
-                    </p>
-                    <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-zinc-100 p-3 text-xs">
-                      {JSON.stringify(rawExtraction, null, 2)}
-                    </pre>
-                  </div>
-                )}
-              </>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowExtractionDebug(false)}
-              className="w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-semibold text-white"
-            >
-              Close
-            </button>
-          </div>
-        </Modal>
-
-        {/* Taxonomy Card Modal */}
-        <TaxonomyCard
-          type={taxonomyCard?.type ?? "position"}
-          id={taxonomyCard?.id ?? null}
-          open={Boolean(taxonomyCard)}
-          onClose={() => setTaxonomyCard(null)}
-          index={index}
-          onNavigate={(type, id) => setTaxonomyCard({ type, id })}
-        />
-
-        </fieldset>
-
-        {formError ? (
-          <p className="text-sm font-semibold text-red-500">{formError}</p>
-        ) : null}
-
-        <div className="flex flex-wrap items-center gap-4">
-          {viewMode === "view" ? (
-            <Button
-              variant="primary"
-              size="lg"
-              type="button"
-              onClick={() => setViewMode("edit")}
-            >
-              Edit session
-            </Button>
-          ) : (
-            <Button variant="primary" size="lg" type="submit">
-              {viewMode === "edit" ? "Update session" : "Save session"}
-            </Button>
-          )}
-          {editingSessionId ? (
-            <button
-              type="button"
-              onClick={() => {
-                resetForm();
-                setSavedSummary(null);
-                if (editSessionId) {
-                  router.replace("/log");
-                }
-              }}
-              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-100"
-            >
-              Start new session
-            </button>
-          ) : null}
-          {saved ? (
-            <span className="text-sm font-semibold text-amber-600">
-              {viewMode === "edit" || editingSessionId ? "Session updated." : "Session saved."}
-            </span>
-          ) : null}
         </div>
-      </form>
-    </div>
+      </div>
+
+      {voiceOpen && (
+        <div
+          className="v1-modal-scrim"
+          onClick={() => !voiceBusy && setVoiceOpen(false)}
+        >
+          <div className="v1-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="v1-modal-title">Paste class transcript</div>
+            <p className="v1-modal-desc">
+              Drop raw notes or a voice memo transcription. We&apos;ll extract
+              positions, techniques, and rounds into the ledger below.
+            </p>
+            <textarea
+              value={voiceText}
+              onChange={(e) => setVoiceText(e.target.value)}
+              placeholder="Worked half-guard today. Hit a John Wayne sweep on Diego, drilled knee-tap…"
+              rows={6}
+              disabled={voiceBusy}
+            />
+            {voiceError && <div className="v1-err">{voiceError}</div>}
+            <div className="v1-modal-row">
+              <button
+                className="draft"
+                type="button"
+                onClick={() => setVoiceOpen(false)}
+                disabled={voiceBusy}
+              >
+                Cancel
+              </button>
+              <button
+                className="save"
+                type="button"
+                onClick={processVoicePaste}
+                disabled={voiceBusy || !voiceText.trim()}
+              >
+                {voiceBusy ? "Extracting…" : "Extract"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
+
+const css = `
+  .v1-root {
+    --bg: #f5f2ed;
+    --ink: #1a1815;
+    --accent: oklch(0.45 0.12 25);
+    --cream: #faf7f1;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    min-height: calc(100vh - 64px);
+    margin-left: -20px;
+    margin-right: -20px;
+    margin-top: -24px;
+    margin-bottom: -48px;
+    padding-bottom: 24px;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .v1-shell { max-width: 440px; margin: 0 auto; }
+  .v1-root .mono { font-family: var(--font-ibm-plex-mono), ui-monospace, "SF Mono", Menlo, monospace; }
+  .v1-hdr {
+    padding: 22px 20px 14px;
+    border-bottom: 1px solid var(--ink);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .v1-hdr h1 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .v1-hdr .no {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    opacity: 0.5;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .v1-hdr-right { display: flex; align-items: center; gap: 10px; }
+  .v1-hdr .date { font-size: 11px; letter-spacing: 0.05em; opacity: 0.65; position: relative; }
+  .v1-date-hidden {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    width: 1px;
+    height: 1px;
+    inset: 0;
+  }
+  .v1-date-btn {
+    font: inherit;
+    font-family: var(--font-ibm-plex-mono), ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    background: transparent;
+    border: none;
+    color: inherit;
+    padding: 2px 0;
+    cursor: pointer;
+    border-bottom: 1px dotted rgba(26, 24, 21, 0.3);
+  }
+  .v1-date-btn:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .v1-mic {
+    border: 1px solid rgba(26, 24, 21, 0.3);
+    background: transparent;
+    color: var(--ink);
+    width: 28px;
+    height: 28px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+  }
+  .v1-mic:hover { background: var(--ink); color: var(--bg); }
+  .v1-root section {
+    padding: 18px 20px;
+    border-bottom: 1px solid rgba(26, 24, 21, 0.12);
+  }
+  .v1-root .label {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .v1-root .label .num { font-variant-numeric: tabular-nums; }
+  .v1-cls { display: flex; gap: 6px; margin-top: 4px; }
+  .v1-cls button {
+    flex: 1;
+    padding: 8px 0;
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: inherit;
+    border: 1px solid rgba(26, 24, 21, 0.3);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .v1-cls button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .v1-root .tbl { border-top: 1px solid var(--ink); }
+  .v1-root .row {
+    display: grid;
+    grid-template-columns: 20px 1fr 1fr 26px;
+    align-items: stretch;
+    border-top: 1px solid rgba(26, 24, 21, 0.08);
+  }
+  .v1-root .row.head { border-top: none; }
+  .v1-root .row .n {
+    font-size: 10px;
+    opacity: 0.4;
+    padding: 10px 0 8px 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .v1-root .row input {
+    border: none;
+    background: transparent;
+    padding: 10px 6px 9px;
+    font-size: 12.5px;
+    font-family: inherit;
+    color: inherit;
+    width: 100%;
+    outline: none;
+    border-left: 1px dotted rgba(26, 24, 21, 0.2);
+    min-width: 0;
+  }
+  .v1-root .row input:focus { background: #fff; position: relative; z-index: 1; }
+  .v1-root .row input::placeholder { color: rgba(26, 24, 21, 0.3); font-style: italic; }
+  .v1-root .row .cell-h {
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    padding: 8px 6px;
+    border-left: 1px dotted rgba(26, 24, 21, 0.2);
+  }
+  .v1-root .row .cell-h:first-of-type { border-left: none; }
+  .v1-root .row .cell-h.pencil { text-align: center; padding: 8px 0; }
+  .v1-root .notebtn {
+    border: none;
+    background: transparent;
+    border-left: 1px dotted rgba(26, 24, 21, 0.2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(26, 24, 21, 0.35);
+    font-family: inherit;
+    padding: 0;
+    position: relative;
+  }
+  .v1-root .notebtn:hover { color: var(--ink); background: rgba(26, 24, 21, 0.04); }
+  .v1-root .notebtn.has { color: var(--accent); }
+  .v1-root .notebtn.has::after {
+    content: "";
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .v1-root .sugg-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px 10px 8px 22px;
+    border-top: 1px solid rgba(26, 24, 21, 0.08);
+    background: #fff;
+  }
+  .v1-root .sugg-chip {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(26, 24, 21, 0.15);
+    background: var(--cream);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .v1-root .sugg-chip:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .v1-root .sugg-chip.sugg-add {
+    border-style: dashed;
+    border-color: var(--accent);
+    color: var(--accent);
+    background: transparent;
+  }
+  .v1-root .sugg-chip.sugg-add:hover {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    border-style: solid;
+  }
+  .v1-root .partner-suggest {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 0 8px 24px;
+    border-top: 1px dotted rgba(26, 24, 21, 0.08);
+  }
+  .v1-root .partner-chip {
+    font-family: inherit;
+    font-size: 11.5px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid rgba(26, 24, 21, 0.15);
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .v1-root .partner-chip:hover {
+    background: var(--ink);
+    color: var(--bg);
+    border-color: var(--ink);
+  }
+  .v1-root .noterow {
+    border-top: 1px solid rgba(26, 24, 21, 0.08);
+    background: var(--cream);
+    padding: 8px 10px 10px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .v1-root .noterow .target {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .v1-root .noterow .target .pin { color: var(--accent); }
+  .v1-root .noterow .target .t-tech,
+  .v1-root .noterow .target .t-pos {
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 1;
+  }
+  .v1-root .noterow .target .t-tech { color: var(--accent); font-weight: 700; }
+  .v1-root .noterow textarea {
+    border: none;
+    background: transparent;
+    resize: none;
+    width: 100%;
+    outline: none;
+    font-family: var(--font-ibm-plex-mono), monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--ink);
+    padding: 0;
+    min-height: 36px;
+  }
+  .v1-root .noterow textarea::placeholder {
+    color: rgba(26, 24, 21, 0.35);
+    font-style: italic;
+  }
+  .v1-root .addrow {
+    padding: 10px 0 2px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.5;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: inherit;
+    font-family: inherit;
+  }
+  .v1-root .addrow:hover { opacity: 1; }
+  .v1-root .roll {
+    display: grid;
+    grid-template-columns: 18px 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 0;
+    border-top: 1px solid rgba(26, 24, 21, 0.08);
+  }
+  .v1-root .roll.head {
+    border-top: 1px solid var(--ink);
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .v1-root .roll.head span {
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+  .v1-root .roll .belt-wrap {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .v1-root .roll .belt {
+    width: 4px;
+    height: 18px;
+    border-radius: 1px;
+    position: relative;
+    cursor: pointer;
+  }
+  .v1-root .roll .belt::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 3px;
+    height: 3px;
+    background: rgba(0, 0, 0, 0.35);
+  }
+  .v1-root .roll input.partner {
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-family: inherit;
+    color: inherit;
+    outline: none;
+    padding: 2px 0;
+    font-weight: 500;
+  }
+  .v1-root .roll input.partner:focus { background: #fff; }
+  .v1-root .score { display: flex; align-items: center; gap: 5px; }
+  .v1-root .score button {
+    width: 18px;
+    height: 18px;
+    border: 1px solid rgba(26, 24, 21, 0.3);
+    background: var(--bg);
+    color: var(--ink);
+    border-radius: 0;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    font-family: inherit;
+  }
+  .v1-root .score button:hover { background: var(--ink); color: var(--bg); }
+  .v1-root .score .v {
+    min-width: 14px;
+    text-align: center;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .v1-root .totals {
+    display: flex;
+    gap: 24px;
+    padding-top: 12px;
+    margin-top: 6px;
+    border-top: 1px solid var(--ink);
+  }
+  .v1-root .totals .t { display: flex; flex-direction: column; gap: 2px; }
+  .v1-root .totals .k {
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+  .v1-root .totals .v {
+    font-size: 22px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .v1-root .submit {
+    padding: 14px 20px 22px;
+    display: flex;
+    gap: 10px;
+  }
+  .v1-root .submit button {
+    flex: 1;
+    padding: 13px;
+    font-size: 10.5px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .v1-root .submit .save {
+    background: var(--ink);
+    color: var(--bg);
+    border: 1px solid var(--ink);
+  }
+  .v1-root .submit .save:disabled { opacity: 0.5; cursor: default; }
+  .v1-root .submit .draft {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid rgba(26, 24, 21, 0.4);
+  }
+  .v1-err {
+    margin: 0 20px;
+    padding: 10px 12px;
+    border: 1px solid #7a3028;
+    background: rgba(122, 48, 40, 0.08);
+    color: #7a3028;
+    font-size: 12px;
+    border-radius: 4px;
+  }
+  .v1-modal-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 24, 21, 0.55);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overscroll-behavior: contain;
+    --bg: #f5f2ed;
+    --ink: #1a1815;
+    --accent: oklch(0.45 0.12 25);
+    --cream: #faf7f1;
+    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .v1-modal {
+    background: #fff;
+    border: 1px solid var(--ink);
+    border-radius: 4px;
+    width: 100%;
+    max-width: 440px;
+    padding: 18px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    color: var(--ink);
+    box-shadow: 0 20px 60px rgba(26, 24, 21, 0.35);
+  }
+  .v1-modal-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .v1-modal-desc {
+    margin: 0;
+    font-size: 12px;
+    opacity: 0.7;
+    line-height: 1.4;
+  }
+  .v1-modal textarea {
+    border: 1px solid rgba(26, 24, 21, 0.3);
+    background: #fff;
+    font-family: var(--font-ibm-plex-mono), monospace;
+    font-size: 12px;
+    padding: 10px 12px;
+    border-radius: 2px;
+    resize: vertical;
+    color: inherit;
+    outline: none;
+  }
+  .v1-modal textarea:focus { border-color: var(--ink); }
+  .v1-modal-row { display: flex; gap: 10px; margin-top: 4px; }
+  .v1-modal-row button {
+    flex: 1;
+    padding: 11px;
+    font-size: 10.5px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 0;
+  }
+  .v1-modal-row .save {
+    background: var(--ink);
+    color: var(--bg);
+    border: 1px solid var(--ink);
+  }
+  .v1-modal-row .save:disabled { opacity: 0.5; cursor: default; }
+  .v1-modal-row .draft {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid rgba(26, 24, 21, 0.4);
+  }
+  @media (min-width: 640px) {
+    .v1-root { margin-top: -2.5rem; margin-bottom: -2.5rem; }
+    .v1-shell { border-left: 1px solid rgba(26, 24, 21, 0.08); border-right: 1px solid rgba(26, 24, 21, 0.08); min-height: calc(100vh + 2.5rem); }
+  }
+`;
