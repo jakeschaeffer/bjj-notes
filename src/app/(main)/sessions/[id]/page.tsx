@@ -104,9 +104,19 @@ export default function SessionDetailPage() {
               </div>
             </div>
             <div className="sd-hdr-actions">
-              <Link href="/sessions" className="sd-action sd-action-ghost">
+              <button
+                type="button"
+                className="sd-action sd-action-ghost"
+                onClick={() => {
+                  if (window.history.length > 1) {
+                    router.back();
+                  } else {
+                    router.push("/sessions");
+                  }
+                }}
+              >
                 Back
-              </Link>
+              </button>
               <Link
                 href={`/log?edit=${session.id}`}
                 className="sd-action sd-action-primary"
@@ -148,10 +158,28 @@ export default function SessionDetailPage() {
                       </div>
                       <div className="sd-tbl-cell">
                         <div className="sd-tbl-pos mono">
-                          {pos?.name ?? "—"}
+                          {pos ? (
+                            <Link
+                              href={`/positions/${pos.id}`}
+                              className="sd-tbl-link"
+                            >
+                              {pos.name}
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
                         </div>
                         <div className="sd-tbl-tech">
-                          {tech?.name ?? "Unknown technique"}
+                          {tech ? (
+                            <Link
+                              href={`/techniques/${tech.id}`}
+                              className="sd-tbl-link"
+                            >
+                              {tech.name}
+                            </Link>
+                          ) : (
+                            "Unknown technique"
+                          )}
                         </div>
                         {(t.notes || cues.length > 0) && (
                           <div className="sd-cue">
@@ -181,7 +209,16 @@ export default function SessionDetailPage() {
                       </div>
                       <div className="sd-tbl-cell">
                         <div className="sd-tbl-pos mono">
-                          {pos?.name ?? "Unknown position"}
+                          {pos ? (
+                            <Link
+                              href={`/positions/${pos.id}`}
+                              className="sd-tbl-link"
+                            >
+                              {pos.name}
+                            </Link>
+                          ) : (
+                            "Unknown position"
+                          )}
                         </div>
                         <div className="sd-tbl-tech sd-tbl-tech-empty">
                           position note
@@ -260,20 +297,22 @@ export default function SessionDetailPage() {
                           {(posTags.length > 0 || techTags.length > 0) && (
                             <div className="sd-roll-tags">
                               {posTags.map((p) => (
-                                <span
+                                <Link
                                   key={p.id}
+                                  href={`/positions/${p.id}`}
                                   className="sd-roll-tag sd-roll-tag-pos"
                                 >
                                   {p.name}
-                                </span>
+                                </Link>
                               ))}
                               {techTags.map((t) => (
-                                <span
+                                <Link
                                   key={t.id}
+                                  href={`/techniques/${t.id}`}
                                   className="sd-roll-tag sd-roll-tag-tech"
                                 >
                                   {t.name}
-                                </span>
+                                </Link>
                               ))}
                             </div>
                           )}
@@ -479,6 +518,14 @@ const css = `
     letter-spacing: -0.01em;
   }
   .sd-tbl-tech-empty { opacity: 0.4; font-style: italic; font-weight: 500; }
+  .sd-tbl-link {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px dotted rgba(26, 24, 21, 0.25);
+    transition: color 0.1s, border-color 0.1s;
+  }
+  .sd-tbl-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  .sd-tbl-tech .sd-tbl-link { font-weight: 600; }
   .sd-cue {
     margin-top: 3px;
     padding: 6px 10px;
