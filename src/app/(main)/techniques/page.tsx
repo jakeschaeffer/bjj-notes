@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 
@@ -441,6 +442,16 @@ export default function TechniquesPage() {
                 </div>
               </section>
             )}
+
+            <div className="t-modal-footer">
+              <Link
+                href={`/techniques/${activeTechnique.id}`}
+                className="t-full-link"
+                onClick={closeModal}
+              >
+                View full profile →
+              </Link>
+            </div>
           </div>
         </div>
       )}
@@ -669,6 +680,25 @@ const css = `
     flex-shrink: 0;
   }
   .t-modal-close:hover { background: rgba(26, 24, 21, 0.06); }
+  .t-modal-footer {
+    padding: 14px 20px 18px;
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid rgba(26, 24, 21, 0.08);
+  }
+  .t-full-link {
+    font-family: inherit;
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 10px 16px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--bg);
+    text-decoration: none;
+  }
+  .t-full-link:hover { background: var(--accent); border-color: var(--accent); }
   .t-modal-section {
     padding: 16px 20px;
     border-bottom: 1px solid rgba(26, 24, 21, 0.12);

@@ -212,7 +212,7 @@ export default function TaxonomyPage() {
                           type="button"
                           className="tax-result-name"
                           onClick={() =>
-                            router.push(`/techniques?focus=${technique.id}`)
+                            router.push(`/techniques/${technique.id}`)
                           }
                         >
                           {technique.name}
@@ -267,7 +267,7 @@ export default function TaxonomyPage() {
                           openTaxonomyCard("position", id)
                         }
                         onTechniqueClick={(id) =>
-                          router.push(`/techniques?focus=${id}`)
+                          router.push(`/techniques/${id}`)
                         }
                         depth={0}
                       />
